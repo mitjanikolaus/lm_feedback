@@ -6,9 +6,9 @@ from transformers import RobertaConfig, RobertaTokenizerFast, RobertaForMaskedLM
     Trainer, TrainingArguments
 
 from data import BabyLMDataset
-from utils import DATA_DIR, TRAINING_TRACK_SMALL
+from utils import DATA_DIR, TRAINING_TRACK_SMALL, TRAINING_TRACK_DEFAULT
 
-TRAINING_TRACK = TRAINING_TRACK_SMALL
+TRAINING_TRACK = TRAINING_TRACK_DEFAULT
 
 
 def train_tokenizer(save_dir):
