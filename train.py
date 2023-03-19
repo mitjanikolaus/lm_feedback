@@ -64,7 +64,7 @@ def train():
         output_dir=out_dir,
         overwrite_output_dir=True,
         num_train_epochs=1,
-        per_device_train_batch_size=64,
+        per_device_train_batch_size=16,
         save_steps=10_000,
         save_total_limit=2,
         prediction_loss_only=True,
