@@ -6,6 +6,8 @@ from tokenizers.implementations import ByteLevelBPETokenizer
 from tokenizers.processors import BertProcessing
 from torch.utils.data import Dataset
 
+import pandas as pd
+
 
 class BabyLMDataset(Dataset):
     def __init__(self, data_path, tokenizer_dir, evaluate: bool = False):
@@ -34,3 +36,42 @@ class BabyLMDataset(Dataset):
     def __getitem__(self, i):
         # We’ll pad at the batch level.
         return torch.tensor(self.examples[i])
+
+
+def get_reward_value(utt):
+    if utt.response_is_clarification_request:
+        return -1
+    elif utt.response_is_acknowledgement:
+        return 1
+    else:
+        return 0.5
+
+
+class FeedbackDataset(Dataset):
+    def __init__(self, data_path, tokenizer_dir):
+        tokenizer = ByteLevelBPETokenizer(
+            os.path.join(tokenizer_dir, "vocab.json"),
+            os.path.join(tokenizer_dir, "merges.txt"),
+        )
+        tokenizer._tokenizer.post_processor = BertProcessing(
+            ("</s>", tokenizer.token_to_id("</s>")),
+            ("<s>", tokenizer.token_to_id("<s>")),
+        )
+        tokenizer.enable_truncation(max_length=512)
+
+        self.examples = []
+
+        print("Loading and encoding data: ")
+        data = pd.read_csv(data_path)
+
+        utts_encoded = tokenizer.encode_batch(data.utt_transcript_clean.to_list())
+        utts_encoded = [x.ids for x in utts_encoded]
+        rewards = data.apply(get_reward_value, axis=1)
+
+        self.examples = list(zip(utts_encoded, rewards))
+
+    def __len__(self):
+        return len(self.examples)
+
+    def __getitem__(self, i):
+        return torch.tensor(self.examples[i][0]), self.examples[i][1]
