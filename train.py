@@ -77,9 +77,12 @@ def train():
         num_train_epochs=10,
         per_device_train_batch_size=args.batch_size,
         save_steps=10_000,
-        save_total_limit=2,
+        save_total_limit=5,
         prediction_loss_only=True,
-        fp16=True
+        fp16=True,
+        evaluation_strategy = "steps",
+        logging_steps = 1000,
+        eval_steps = 10000,
     )
 
     trainer = Trainer(
@@ -88,11 +91,6 @@ def train():
         data_collator=data_collator,
         train_dataset=dataset,
         eval_dataset=dataset_dev,
-        evaluation_strategy="steps",
-        logging_steps=1000,
-        eval_steps=10000,
-        save_steps=10000,
-        save_total_limit=5,
     )
 
     trainer.train()
