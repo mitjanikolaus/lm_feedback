@@ -3,7 +3,7 @@ import os
 
 import pandas as pd
 import torch.cuda
-from transformers import AutoTokenizer, AutoModelForMaskedLM
+from transformers import AutoTokenizer, AutoModelForMaskedLM, TRANSFORMERS_CACHE
 
 from unmasked.mlm.scoring import mlm_score_model_on_paradigm
 from unmasked.holistic.scoring import holistic_score_model_on_paradigm
@@ -24,6 +24,8 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def eval():
+    print("Cache dir: ", TRANSFORMERS_CACHE)
+
     args = parse_args()
 
     if SCORING_METHOD == 'mlm':
