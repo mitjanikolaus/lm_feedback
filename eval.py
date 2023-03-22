@@ -24,8 +24,6 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def eval():
-    print("Cache dir: ", TRANSFORMERS_CACHE)
-
     args = parse_args()
 
     if SCORING_METHOD == 'mlm':
