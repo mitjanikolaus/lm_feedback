@@ -88,6 +88,11 @@ def train():
         data_collator=data_collator,
         train_dataset=dataset,
         eval_dataset=dataset_dev,
+        evaluation_strategy="steps",
+        logging_steps=1000,
+        eval_steps=10000,
+        save_steps=10000,
+        save_total_limit=5,
     )
 
     trainer.train()
