@@ -26,7 +26,7 @@ class BabyLMDataset(Dataset):
         print("Loading and encoding data: ")
         src_files = Path(data_path).glob("*")
         for src_file in src_files:
-            if not str(src_file).startswith("."):
+            if not src_file.name.startswith("."):
                 print(src_file)
                 lines = src_file.read_text(encoding="utf-8").splitlines()
                 self.examples += [x.ids for x in tokenizer.encode_batch(lines)]
