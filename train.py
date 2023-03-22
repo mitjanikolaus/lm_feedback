@@ -10,6 +10,7 @@ from data import BabyLMDataset, FeedbackDataset
 from utils import DATA_DIR, TRAINING_TRACK_SMALL, TRAINING_TRACK_DEFAULT
 
 TRAINING_TRACK = TRAINING_TRACK_DEFAULT
+PATH_DEV = "babylm_dev"
 
 
 def train_tokenizer(save_dir, vocab_size):
@@ -43,8 +44,12 @@ def train():
         # Train tokenizer if it doesn't exist yet
         train_tokenizer(out_dir, vocab_size=args.vocab_size)
 
-    data_path = os.path.join(DATA_DIR, TRAINING_TRACK)
-    dataset = BabyLMDataset(data_path, tokenizer_dir=out_dir)
+    data_path_dev = os.path.join(DATA_DIR, PATH_DEV)
+    dataset_dev = BabyLMDataset(data_path_dev, tokenizer_dir=out_dir)
+
+    data_path_train = os.path.join(DATA_DIR, TRAINING_TRACK)
+    dataset = BabyLMDataset(data_path_train, tokenizer_dir=out_dir)
+
 
     # fb_dataset = FeedbackDataset("~/data/lm_feedback/conversations.csv", tokenizer_dir=out_dir)
 
@@ -82,6 +87,7 @@ def train():
         args=training_args,
         data_collator=data_collator,
         train_dataset=dataset,
+        eval_dataset=dataset_dev,
     )
 
     trainer.train()
