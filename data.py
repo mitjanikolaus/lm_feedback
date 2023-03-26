@@ -37,7 +37,7 @@ def train_tokenizer(save_dir, vocab_size, training_track):
 
 
 class BabyLMDataModule(pl.LightningDataModule):
-    def __init__(self, training_track=TRAINING_TRACK_DEFAULT, vocab_size=32000, max_len=512, batch_size=16, num_workers=4):
+    def __init__(self, training_track=TRAINING_TRACK_DEFAULT, vocab_size=32000, max_len=128, batch_size=16, num_workers=4):
         super().__init__()
         self.batch_size = batch_size
         self.num_workers = num_workers
@@ -92,7 +92,7 @@ class BabyLMDataset(Dataset):
 
     def __getitem__(self, i):
         out = self.tokenizer(self.examples[i], add_special_tokens=True, return_special_tokens_mask=True,
-                             return_token_type_ids=True, truncation=True, max_length=self.max_len)
+                             return_token_type_ids=True, truncation=True, max_length=self.max_len-2)
         return out
 
 
@@ -115,7 +115,7 @@ class FeedbackDataset(Dataset):
             ("</s>", tokenizer.token_to_id("</s>")),
             ("<s>", tokenizer.token_to_id("<s>")),
         )
-        tokenizer.enable_truncation(max_length=512)
+        tokenizer.enable_truncation(max_length=128)
 
         self.examples = []
 

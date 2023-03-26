@@ -2,7 +2,6 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.cli import LightningCLI
 from transformers import RobertaConfig, RobertaForMaskedLM, AdamW
 import pytorch_lightning as pl
-
 from data import BabyLMDataModule
 
 
@@ -12,7 +11,7 @@ class BabyLMModel(pl.LightningModule):
 
         self.save_hyperparameters()
 
-        max_len = 512
+        max_len = 128
 
         config = RobertaConfig(
             vocab_size=vocab_size,
