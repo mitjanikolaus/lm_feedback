@@ -90,14 +90,16 @@ class BabyLMDataset(Dataset):
             if not src_file.name.startswith("."):
                 print(src_file)
                 lines = src_file.read_text(encoding="utf-8").splitlines()
+                lines = [l for l in lines if l] # Discard empty lines
                 self.examples += lines
 
     def __len__(self):
         return len(self.examples)
 
     def __getitem__(self, i):
-        return self.tokenizer.encode_plus(self.examples[i], add_special_tokens=True, return_special_tokens_mask=True,
-                                          return_token_type_ids=True)
+        out = self.tokenizer(self.examples[i], add_special_tokens=True, return_special_tokens_mask=True, return_token_type_ids=True)
+        return out
+
 
 def get_reward_value(utt):
     if utt.response_is_clarification_request:
