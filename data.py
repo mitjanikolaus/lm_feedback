@@ -51,10 +51,10 @@ class BabyLMDataModule(pl.LightningDataModule):
 
         self.tokenizer = RobertaTokenizerFast.from_pretrained(tokenizer_dir, max_len=max_len)
 
-        self.dataset_dev = BabyLMDataset(data_path_dev, tokenizer=self.tokenizer)
+        self.dataset_dev = BabyLMDataset(data_path_dev, tokenizer=self.tokenizer, max_len=max_len)
 
         data_path_train = os.path.join(DATA_DIR, training_track)
-        self.train_dataset = BabyLMDataset(data_path_train, tokenizer=self.tokenizer)
+        self.train_dataset = BabyLMDataset(data_path_train, tokenizer=self.tokenizer, max_len=max_len)
 
         # fb_dataset = FeedbackDataset("~/data/lm_feedback/conversations.csv", tokenizer_dir=out_dir)
 
@@ -73,15 +73,9 @@ class BabyLMDataModule(pl.LightningDataModule):
 
 
 class BabyLMDataset(Dataset):
-    def __init__(self, data_path, tokenizer):
+    def __init__(self, data_path, tokenizer, max_len):
         self.tokenizer = tokenizer
-        # TODO needed?
-        # self.tokenizer._tokenizer.post_processor = BertProcessing(
-        #     (self.tokenizer.eos_token, self.tokenizer.eos_token_id),
-        #     (self.tokenizer.cls_token, self.tokenizer.cls_token_id),
-        # )
-        # self.tokenizer.enable_truncation(max_length=512)
-
+        self.max_len = max_len
         self.examples = []
 
         print("Loading data: ")
@@ -97,7 +91,8 @@ class BabyLMDataset(Dataset):
         return len(self.examples)
 
     def __getitem__(self, i):
-        out = self.tokenizer(self.examples[i], add_special_tokens=True, return_special_tokens_mask=True, return_token_type_ids=True)
+        out = self.tokenizer(self.examples[i], add_special_tokens=True, return_special_tokens_mask=True,
+                             return_token_type_ids=True, truncation=True, max_length=self.max_len)
         return out
 
 
