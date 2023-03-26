@@ -6,7 +6,7 @@ from data import BabyLMDataModule
 
 
 class BabyLMModel(pl.LightningModule):
-    def __init__(self, vocab_size=32000):
+    def __init__(self, vocab_size=32000, initial_lr=1e-4):
         super().__init__()
 
         self.save_hyperparameters()
@@ -36,7 +36,7 @@ class BabyLMModel(pl.LightningModule):
         self.log(f"val_loss", out["loss"], prog_bar=True)
 
     def configure_optimizers(self):
-        optimizer = AdamW(params=self.model.parameters())
+        optimizer = AdamW(params=self.model.parameters(), lr=self.hparams.initial_lr)
         return optimizer
 
     # def on_fit_start(self):
