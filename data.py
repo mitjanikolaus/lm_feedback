@@ -37,7 +37,7 @@ def train_tokenizer(save_dir, vocab_size, training_track):
 
 
 class BabyLMDataModule(pl.LightningDataModule):
-    def __init__(self, training_track=TRAINING_TRACK_DEFAULT, vocab_size=32000, max_len=128, batch_size=16, num_workers=4):
+    def __init__(self, training_track=TRAINING_TRACK_DEFAULT, vocab_size=32000, max_len=128, batch_size=128, num_workers=4):
         super().__init__()
         self.batch_size = batch_size
         self.num_workers = num_workers
