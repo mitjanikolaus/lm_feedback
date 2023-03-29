@@ -1,6 +1,3 @@
-[submodule "UnMasked"]
-	path = UnMasked
-	url = git@github.com:mitjanikolaus/UnMasked.git
 [submodule "evaluation-pipeline"]
 	path = evaluation-pipeline
 	url = git@github.com:mitjanikolaus/evaluation-pipeline.git
