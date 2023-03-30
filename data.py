@@ -37,7 +37,7 @@ def train_tokenizer(save_dir, vocab_size, training_track):
 
 
 class BabyLMDataModule(pl.LightningDataModule):
-    def __init__(self, training_track=TRAINING_TRACK_DEFAULT, fb=False, vocab_size=32000, max_len=128, batch_size=128, num_workers=4):
+    def __init__(self, training_track=TRAINING_TRACK_DEFAULT, fb=False, fb_data_path=None, vocab_size=32000, max_len=128, batch_size=128, num_workers=4):
         super().__init__()
         self.batch_size = batch_size
         self.num_workers = num_workers
@@ -58,7 +58,7 @@ class BabyLMDataModule(pl.LightningDataModule):
         self.train_dataset = BabyLMDataset(data_path_train, tokenizer=self.tokenizer, max_len=max_len)
 
         if self.fb:
-            self.train_fb_dataset = FeedbackDataset("~/data/lm_feedback/conversations.csv", self.tokenizer, max_len)
+            self.train_fb_dataset = FeedbackDataset(fb_data_path, self.tokenizer, max_len)
 
         self.collate_fn = DataCollatorForLanguageModeling(
             tokenizer=self.tokenizer, mlm=True, mlm_probability=0.15
