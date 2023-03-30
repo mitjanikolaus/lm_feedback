@@ -8,7 +8,7 @@ from torch.utils.data import Dataset, DataLoader
 import pytorch_lightning as pl
 
 import pandas as pd
-from transformers import DataCollatorForLanguageModeling, RobertaTokenizerFast
+from transformers import DataCollatorForLanguageModeling, RobertaTokenizerFast, DataCollatorWithPadding
 
 from utils import DATA_DIR, PATH_DEV, TRAINING_TRACK_DEFAULT
 
@@ -37,10 +37,11 @@ def train_tokenizer(save_dir, vocab_size, training_track):
 
 
 class BabyLMDataModule(pl.LightningDataModule):
-    def __init__(self, training_track=TRAINING_TRACK_DEFAULT, vocab_size=32000, max_len=128, batch_size=128, num_workers=4):
+    def __init__(self, training_track=TRAINING_TRACK_DEFAULT, fb=False, vocab_size=32000, max_len=128, batch_size=128, num_workers=4):
         super().__init__()
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.fb = fb
 
         tokenizer_dir = os.path.join("tokenizers", f"lm_feedback_{training_track}_vocab_{vocab_size}")
         os.makedirs(tokenizer_dir, exist_ok=True)
@@ -56,15 +57,23 @@ class BabyLMDataModule(pl.LightningDataModule):
         data_path_train = os.path.join(DATA_DIR, training_track)
         self.train_dataset = BabyLMDataset(data_path_train, tokenizer=self.tokenizer, max_len=max_len)
 
-        # fb_dataset = FeedbackDataset("~/data/lm_feedback/conversations.csv", tokenizer_dir=out_dir)
+        if self.fb:
+            self.train_fb_dataset = FeedbackDataset("~/data/lm_feedback/conversations.csv", self.tokenizer, max_len)
 
         self.collate_fn = DataCollatorForLanguageModeling(
             tokenizer=self.tokenizer, mlm=True, mlm_probability=0.15
         )
+        self.collate_fn_fb = DataCollatorWithPadding(tokenizer=self.tokenizer)
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers,
+        lm_dataloader = DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers,
                           shuffle=True, collate_fn=self.collate_fn)
+        if self.fb:
+            fb_dataloader = DataLoader(self.train_fb_dataset, batch_size=self.batch_size, num_workers=self.num_workers,
+                          shuffle=True, collate_fn=self.collate_fn_fb)
+            return {"lm": lm_dataloader, "fb": fb_dataloader}
+        else:
+            return lm_dataloader
 
     def val_dataloader(self):
         validation_dataloader = DataLoader(self.dataset_dev, batch_size=self.batch_size,
@@ -78,7 +87,7 @@ class BabyLMDataset(Dataset):
         self.max_len = max_len
         self.examples = []
 
-        print("Loading data: ")
+        print("Loading LM data: ")
         src_files = Path(data_path).glob("*")
         for src_file in src_files:
             if not src_file.name.startswith("."):
@@ -106,30 +115,27 @@ def get_reward_value(utt):
 
 
 class FeedbackDataset(Dataset):
-    def __init__(self, data_path, tokenizer_dir):
-        tokenizer = ByteLevelBPETokenizer(
-            os.path.join(tokenizer_dir, "vocab.json"),
-            os.path.join(tokenizer_dir, "merges.txt"),
-        )
-        tokenizer._tokenizer.post_processor = BertProcessing(
-            ("</s>", tokenizer.token_to_id("</s>")),
-            ("<s>", tokenizer.token_to_id("<s>")),
-        )
-        tokenizer.enable_truncation(max_length=128)
+    def __init__(self, data_path, tokenizer, max_len):
+        self.tokenizer = tokenizer
+        self.max_len = max_len
 
-        self.examples = []
+        print("Loading FB data.. ", end="")
+        data = pd.read_csv(data_path, nrows=100) #TODO
 
-        print("Loading and encoding data: ")
-        data = pd.read_csv(data_path)
-
-        utts_encoded = tokenizer.encode_batch(data.utt_transcript_clean.to_list())
-        utts_encoded = [x.ids for x in utts_encoded]
+        utts_encoded = data.utt_transcript_clean.to_list()
         rewards = data.apply(get_reward_value, axis=1)
 
         self.examples = list(zip(utts_encoded, rewards))
+        print("Done.")
 
     def __len__(self):
         return len(self.examples)
 
     def __getitem__(self, i):
-        return torch.tensor(self.examples[i][0]), self.examples[i][1]
+        encoded_sample = self.tokenizer(self.examples[i][0], add_special_tokens=True, return_special_tokens_mask=True,
+                             return_token_type_ids=True, truncation=True, max_length=self.max_len - 2)
+        reward = self.examples[i][1]
+        encoded_sample.data["reward"] = reward
+        encoded_sample.data["length"] = len(encoded_sample.input_ids)
+
+        return encoded_sample
