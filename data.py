@@ -120,7 +120,7 @@ class FeedbackDataset(Dataset):
         self.max_len = max_len
 
         print("Loading FB data.. ", end="")
-        data = pd.read_csv(data_path, nrows=100) #TODO
+        data = pd.read_csv(data_path)
 
         utts_encoded = data.utt_transcript_clean.to_list()
         rewards = data.apply(get_reward_value, axis=1)
