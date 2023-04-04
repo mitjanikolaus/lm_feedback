@@ -104,7 +104,7 @@ def cli_main():
         seed_everything_default=1,
         trainer_defaults={
             "callbacks": [checkpoint_callback, early_stop_callback],
-            "max_epochs": 50,
+            "max_epochs": 100,
             "check_val_every_n_epoch": None,
             "val_check_interval": 10000,
             "log_every_n_steps": 1000,
