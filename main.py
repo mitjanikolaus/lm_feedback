@@ -1,3 +1,4 @@
+import math
 import os
 import torch
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
@@ -26,11 +27,14 @@ class BabyLMModel(pl.LightningModule):
 
         self.model = RobertaForMaskedLM(config=config)
 
-    def save_huggingface_checkpoint(self):
-        """Self checkpoint that is compatible with huggingface"""
-        print("Saving huggingface-compatible checkpoint")
+        self.best_val_loss = math.inf
 
-        huggingface_ckpt_dir = os.path.join(self.logger.log_dir, "ckpt_huggingface")
+    def save_huggingface_checkpoint(self, is_best):
+        """Self checkpoint that is compatible with huggingface"""
+        path = "ckpt_huggingface_best" if is_best else "ckpt_huggingface_last"
+        print(f"Saving huggingface-compatible checkpoint to {path}")
+
+        huggingface_ckpt_dir = os.path.join(self.logger.log_dir, path)
         os.makedirs(huggingface_ckpt_dir, exist_ok=True)
 
         self.model.save_pretrained(huggingface_ckpt_dir)
@@ -38,7 +42,7 @@ class BabyLMModel(pl.LightningModule):
         tokenizer.save_pretrained(huggingface_ckpt_dir)
 
     def on_fit_start(self) -> None:
-        self.save_huggingface_checkpoint()
+        self.save_huggingface_checkpoint(is_best=True)
 
     def training_step(self, batch, batch_idx):
         if self.trainer.datamodule.fb:
@@ -80,7 +84,15 @@ class BabyLMModel(pl.LightningModule):
         self.log(f"val_loss", out["loss"], prog_bar=True)
 
     def on_save_checkpoint(self, checkpoint):
-        self.save_huggingface_checkpoint()
+        new_best_val_loss = checkpoint["callbacks"]["EarlyStopping{'monitor': 'val_loss', 'mode': 'min'}"]["best_score"].item()
+        if new_best_val_loss < self.best_val_loss:
+            print("saving best checkpoint")
+            self.best_val_loss = new_best_val_loss
+            self.save_huggingface_checkpoint(is_best=True)
+        else:
+            print("saving last checkpoint")
+            self.save_huggingface_checkpoint(is_best=False)
+
 
     def configure_optimizers(self):
         optimizer = AdamW(params=self.model.parameters(), lr=self.hparams.initial_lr)
@@ -93,7 +105,7 @@ class BabyLMModel(pl.LightningModule):
 
 
 def cli_main():
-    checkpoint_callback = ModelCheckpoint(monitor="val_loss", mode="min", save_last=False,
+    checkpoint_callback = ModelCheckpoint(monitor="val_loss", mode="min", save_last=True,
                                           filename="{epoch:02d}-{val_loss:.2f}")
     early_stop_callback = EarlyStopping(monitor="val_loss", patience=10, verbose=True, mode="min",
                                         min_delta=0.01)
