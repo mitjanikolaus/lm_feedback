@@ -107,7 +107,7 @@ class BabyLMDataset(Dataset):
 
 def get_reward_value(utt):
     if utt.response_is_clarification_request:
-        return -1
+        return 0
     elif utt.response_is_acknowledgement:
         return 1
     else:
