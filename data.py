@@ -36,9 +36,19 @@ def train_tokenizer(save_dir, vocab_size, training_track):
     print(f"Saved trained tokenizer to {save_dir}")
 
 
+DATA_NAMES = ["aochildes", "bnc_spoken", "cbt", "children_stories", "gutenberg", "open_subtitles", "qed",
+              "simple_wikipedia", "switchboard", "wikipedia"]
+
+
 class BabyLMDataModule(pl.LightningDataModule):
-    def __init__(self, training_track=TRAINING_TRACK_DEFAULT, fb=False, fb_data_path=None, vocab_size=32000, max_len=128, batch_size=128, num_workers=4):
+    def __init__(self, training_track=TRAINING_TRACK_DEFAULT, fb=False, fb_data_path=None, vocab_size=32000,
+                 max_len=128, batch_size=128, num_workers=4, subset=None):
         super().__init__()
+        if subset is None:
+            subset = DATA_NAMES
+        elif isinstance(subset, str):
+            subset = [subset]
+
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.fb = fb
@@ -52,10 +62,10 @@ class BabyLMDataModule(pl.LightningDataModule):
 
         self.tokenizer = RobertaTokenizerFast.from_pretrained(tokenizer_dir, max_len=max_len)
 
-        self.dataset_dev = BabyLMDataset(data_path_dev, tokenizer=self.tokenizer, max_len=max_len)
+        self.dataset_dev = BabyLMDataset(data_path_dev, tokenizer=self.tokenizer, max_len=max_len, subset=subset, split="dev")
 
         data_path_train = os.path.join(DATA_DIR, training_track)
-        self.train_dataset = BabyLMDataset(data_path_train, tokenizer=self.tokenizer, max_len=max_len)
+        self.train_dataset = BabyLMDataset(data_path_train, tokenizer=self.tokenizer, max_len=max_len, subset=subset, split="train")
 
         if self.fb:
             self.train_fb_dataset = FeedbackDataset(fb_data_path, self.tokenizer, max_len)
@@ -82,19 +92,18 @@ class BabyLMDataModule(pl.LightningDataModule):
 
 
 class BabyLMDataset(Dataset):
-    def __init__(self, data_path, tokenizer, max_len):
+    def __init__(self, data_path, tokenizer, max_len, subset, split):
         self.tokenizer = tokenizer
         self.max_len = max_len
         self.examples = []
 
         print("Loading LM data: ")
-        src_files = Path(data_path).glob("*")
-        for src_file in src_files:
-            if not src_file.name.startswith("."):
-                print(src_file)
-                lines = src_file.read_text(encoding="utf-8").splitlines()
-                lines = [l for l in lines if l] # Discard empty lines
-                self.examples += lines
+        for src_file in subset:
+            src_file = os.path.join(data_path, f"{src_file}.{split}")
+            print(src_file)
+            lines = Path(src_file).read_text(encoding="utf-8").splitlines()
+            lines = [l for l in lines if l] # Discard empty lines
+            self.examples += lines
 
     def __len__(self):
         return len(self.examples)
