@@ -10,12 +10,10 @@ from data import BabyLMDataModule
 
 
 class BabyLMModel(pl.LightningModule):
-    def __init__(self, vocab_size=32000, initial_lr=1e-4, rl_loss_weight=0):
+    def __init__(self, vocab_size=32000, max_len=128, initial_lr=1e-4, rl_loss_weight=0):
         super().__init__()
 
         self.save_hyperparameters()
-
-        max_len = 128
 
         config = RobertaConfig(
             vocab_size=vocab_size,

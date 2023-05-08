@@ -1,10 +1,9 @@
 import os
 from pathlib import Path
+import random
 
-import torch
 from tokenizers.implementations import ByteLevelBPETokenizer
-from tokenizers.processors import BertProcessing
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, IterableDataset
 import pytorch_lightning as pl
 
 import pandas as pd
@@ -42,7 +41,7 @@ DATA_NAMES = ["aochildes", "bnc_spoken", "cbt", "children_stories", "gutenberg",
 
 class BabyLMDataModule(pl.LightningDataModule):
     def __init__(self, training_track=TRAINING_TRACK_DEFAULT, fb=False, fb_data_path=None, vocab_size=32000,
-                 max_len=128, batch_size=128, num_workers=4, subset=None):
+                 max_len=128, batch_size=128, num_workers=4, subset=None, shuffle_sentences=False):
         super().__init__()
         if subset is None:
             subset = DATA_NAMES
@@ -62,10 +61,11 @@ class BabyLMDataModule(pl.LightningDataModule):
 
         self.tokenizer = RobertaTokenizerFast.from_pretrained(tokenizer_dir, max_len=max_len)
 
-        self.dataset_dev = BabyLMDataset(data_path_dev, tokenizer=self.tokenizer, max_len=max_len, subset=subset, split="dev")
+        self.dataset_dev = BabyLMIterableDataset(data_path_dev, tokenizer=self.tokenizer, max_len=max_len, subset=subset, split="dev")
 
         data_path_train = os.path.join(DATA_DIR, training_track)
-        self.train_dataset = BabyLMDataset(data_path_train, tokenizer=self.tokenizer, max_len=max_len, subset=subset, split="train")
+        self.train_dataset = BabyLMIterableDataset(data_path_train, tokenizer=self.tokenizer, max_len=max_len,
+                                                   subset=subset, split="train", shuffle_sentences=shuffle_sentences)
 
         if self.fb:
             self.train_fb_dataset = FeedbackDataset(fb_data_path, self.tokenizer, max_len)
@@ -77,7 +77,7 @@ class BabyLMDataModule(pl.LightningDataModule):
 
     def train_dataloader(self):
         lm_dataloader = DataLoader(self.train_dataset, batch_size=self.batch_size, num_workers=self.num_workers,
-                          shuffle=True, collate_fn=self.collate_fn)
+                          collate_fn=self.collate_fn)
         if self.fb:
             fb_dataloader = DataLoader(self.train_fb_dataset, batch_size=self.batch_size, num_workers=self.num_workers,
                           shuffle=True, collate_fn=self.collate_fn_fb)
@@ -92,9 +92,9 @@ class BabyLMDataModule(pl.LightningDataModule):
 
 
 class BabyLMDataset(Dataset):
-    def __init__(self, data_path, tokenizer, max_len, subset, split):
-        self.tokenizer = tokenizer
-        self.max_len = max_len
+    def __init__(self, data_path, subset, split):
+        super().__init__()
+
         self.examples = []
 
         print("Loading LM data: ")
@@ -104,14 +104,72 @@ class BabyLMDataset(Dataset):
             lines = Path(src_file).read_text(encoding="utf-8").splitlines()
             lines = [l for l in lines if l] # Discard empty lines
             self.examples += lines
+            break
 
     def __len__(self):
         return len(self.examples)
 
     def __getitem__(self, i):
-        out = self.tokenizer(self.examples[i], add_special_tokens=True, return_special_tokens_mask=True,
+        return self.examples[i]
+
+
+class BabyLMIterableDataset(IterableDataset):
+    def __init__(self, data_path, tokenizer, max_len, subset, split, shuffle_sentences=False):
+        super().__init__()
+        self.ds = BabyLMDataset(data_path, subset, split)
+        self.tokenizer = tokenizer
+
+        # The positional encoding seems to work only if we subtract 2 from the max_len here.
+        # Needs further investigation..
+        self.max_len = max_len - 2
+        self.shuffle = shuffle_sentences
+
+    def __iter__(self):
+        indices = list(range(len(self.ds)))
+
+        if self.shuffle:
+            random.shuffle(indices)
+
+        i = 0
+        while i < len(indices):
+            sentence = self.ds.__getitem__(indices[i])
+            i += 1
+            encoded = self.tokenizer(sentence, add_special_tokens=False, return_special_tokens_mask=True,
                              return_token_type_ids=True, truncation=True, max_length=self.max_len-2)
-        return out
+            encoded_length = len(encoded.encodings[0])
+
+            while encoded_length < self.max_len - 2 and i < len(self.ds):
+                sentence = self.ds.__getitem__(indices[i])
+                i += 1
+                out = self.tokenizer(sentence, add_special_tokens=False, return_special_tokens_mask=True,
+                             return_token_type_ids=True, truncation=True, max_length=self.max_len-2 - encoded_length)
+                encoded["input_ids"] += out["input_ids"]
+                encoded["token_type_ids"] += out["token_type_ids"]
+                encoded["attention_mask"] += out["attention_mask"]
+                encoded["special_tokens_mask"] += out["special_tokens_mask"]
+
+                encoded_length += len(out.encodings[0])
+
+            # add special tokens:
+            specials = self.tokenizer("", add_special_tokens=True, return_special_tokens_mask=True, return_token_type_ids=True)
+            if len(specials["input_ids"]) > 2:
+                raise RuntimeError("Unexpected number of special tokens!")
+            encoded["input_ids"] = [specials["input_ids"][0]] + encoded["input_ids"] + [specials["input_ids"][1]]
+            encoded["token_type_ids"] = [specials["token_type_ids"][0]] + encoded["token_type_ids"] + [specials["token_type_ids"][1]]
+            encoded["attention_mask"] = [specials["attention_mask"][0]] + encoded["attention_mask"] + [specials["attention_mask"][1]]
+            encoded["special_tokens_mask"] = [specials["special_tokens_mask"][0]] + encoded["special_tokens_mask"] + [specials["special_tokens_mask"][1]]
+
+            # Add padding for the last element
+            if i >= len(self.ds):
+                out = self.tokenizer("", add_special_tokens=False, return_special_tokens_mask=True,
+                                     return_token_type_ids=True, padding="max_length",
+                                     max_length=self.max_len - 2 - encoded_length)
+                encoded["input_ids"] += out["input_ids"]
+                encoded["token_type_ids"] += out["token_type_ids"]
+                encoded["attention_mask"] += out["attention_mask"]
+                encoded["special_tokens_mask"] += out["special_tokens_mask"]
+
+            yield encoded
 
 
 def get_reward_value(utt):
