@@ -5,10 +5,11 @@ channels:
   - https://repo.anaconda.com/pkgs/free
   - menpo
   - roebel
+  - pytorch
+  - nvidia
 dependencies:
   - python=3.9
   - pytorch
-  - pytorch-cuda=11.8
   - transformers==4.14.1
   - tokenizers==0.10.3
   - pip=23.0.1
