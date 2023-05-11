@@ -8,7 +8,7 @@ def gather_and_print_results(args):
     for task in ["anaphor_agreement", "argument_structure", "binding", "control_raising", "determiner_noun_agreement",
                  "ellipsis", "filler_gap", "irregular_forms", "island_effects", "npi_licensing", "quantifiers",
                  "subject_verb_agreement"]:
-        res_file = f"{args.ckpt}/ckpt_huggingface/zeroshot/{task}/eval_results.json"
+        res_file = f"{args.ckpt}/zeroshot/{task}/eval_results.json"
         if not os.path.isfile(res_file):
             print("result missing: ", task)
             continue
