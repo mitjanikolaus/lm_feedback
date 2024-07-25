@@ -129,5 +129,5 @@ def cli_main():
 
 
 if __name__ == "__main__":
-    # os.environ["TOKENIZERS_PARALLELISM"] = "False"
+    os.environ["TOKENIZERS_PARALLELISM"] = "False"
     cli_main()
