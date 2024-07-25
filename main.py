@@ -130,4 +130,6 @@ def cli_main():
 
 if __name__ == "__main__":
     os.environ["TOKENIZERS_PARALLELISM"] = "False"
+    torch.set_float32_matmul_precision('medium')
+
     cli_main()
