@@ -93,7 +93,6 @@ class BabyLMModel(pl.LightningModule):
             print("saving last checkpoint")
             self.save_huggingface_checkpoint(is_best=False)
 
-
     def configure_optimizers(self):
         optimizer = AdamW(params=self.model.parameters(), lr=self.hparams.initial_lr)
         return optimizer
@@ -130,4 +129,5 @@ def cli_main():
 
 
 if __name__ == "__main__":
+    # os.environ["TOKENIZERS_PARALLELISM"] = "False"
     cli_main()

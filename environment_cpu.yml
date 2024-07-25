@@ -1,6 +1,7 @@
 name: lm_feedback
 channels:
   - defaults
+  - pytorch
 dependencies:
   - python=3.9
   - cpuonly
@@ -8,4 +9,4 @@ dependencies:
   - transformers==4.14.1
   - tokenizers==0.10.3
   - pandas
-prefix: /home/mitja/anaconda3/envs/lm_feedback
+  - lightning
