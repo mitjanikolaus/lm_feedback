@@ -1,12 +1,11 @@
 name: lm_feedback
 channels:
   - defaults
-  - pytorch
 dependencies:
-  - python=3.9
   - cpuonly
-  - pytorch
-  - transformers==4.14.1
-  - tokenizers==0.10.3
   - pandas
+  - python==3.12.3
+  - pytorch
+  - transformers==4.43.2
   - lightning
+  - conda-forge::huggingface_hub=0.24.2
