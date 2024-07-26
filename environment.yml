@@ -1,15 +1,14 @@
 name: lm_feedback
 channels:
-  - conda-forge
   - defaults
   - pytorch
-  - nvidia
 dependencies:
-  - python=3.9
-  - pytorch
-  - transformers
-  - tokenizers
-  - pip=23.0.1
-  - pandas
   - lightning
   - matplotlib
+  - pandas
+  - pip=23.0.1
+  - python==3.12.4
+  - pytorch
+  - tokenizers
+  - conda-forge::transformers=4.43
+  - conda-forge::huggingface_hub=0.24.2
