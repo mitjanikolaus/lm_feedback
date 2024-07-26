@@ -3,7 +3,7 @@ import os
 import torch
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.cli import LightningCLI
-from transformers import RobertaConfig, RobertaForMaskedLM
+from transformers import RobertaConfig, RobertaForMaskedLM, AutoModelForMaskedLM, AutoConfig
 from torch.optim import AdamW
 import pytorch_lightning as pl
 from data import BabyLMDataModule
@@ -17,15 +17,25 @@ class BabyLMModel(pl.LightningModule):
 
         self.max_len = max_len
 
-        config = RobertaConfig(
-            vocab_size=vocab_size,
-            max_position_embeddings=self.max_len,
-            num_attention_heads=12,
-            num_hidden_layers=6,
-            type_vocab_size=1,
-        )
+        # config = RobertaConfig(
+        #     vocab_size=vocab_size,
+        #     max_position_embeddings=self.max_len,
+        #     num_attention_heads=12,
+        #     num_hidden_layers=6,
+        #     type_vocab_size=1,
+        # )
 
-        self.model = RobertaForMaskedLM(config=config)
+        # self.model = RobertaForMaskedLM(config=config)
+
+        # config = AutoConfig(
+        #     vocab_size=vocab_size,
+        #     max_position_embeddings=self.max_len,
+        #     num_attention_heads=12,
+        #     num_hidden_layers=6,
+        #     type_vocab_size=1,
+        # )
+        self.model = AutoModelForMaskedLM.from_pretrained("lgcharpe/ELC_BERT_small_baby_10M", trust_remote_code=True) #TODO , config=config
+        self.model.init_weights()
 
         self.best_val_loss = math.inf
 
