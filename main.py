@@ -81,7 +81,7 @@ class BabyLMModel(pl.LightningModule):
             loss = loss_lm + loss_rl
         else:
             out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
-                             token_type_ids=batch.token_type_ids)
+                             ) #token_type_ids=batch.token_type_ids
             loss = out["loss"]
 
         self.log(f"train_loss", loss, prog_bar=True)
@@ -90,7 +90,7 @@ class BabyLMModel(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
-                         token_type_ids=batch.token_type_ids)
+                         ) #token_type_ids=batch.token_type_ids
         self.log(f"val_loss", out["loss"], prog_bar=True)
 
     def on_save_checkpoint(self, checkpoint):
