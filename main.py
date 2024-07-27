@@ -17,15 +17,15 @@ class BabyLMModel(pl.LightningModule):
 
         self.max_len = max_len
 
-        # config = RobertaConfig(
-        #     vocab_size=vocab_size,
-        #     max_position_embeddings=self.max_len,
-        #     num_attention_heads=12,
-        #     num_hidden_layers=6,
-        #     type_vocab_size=1,
-        # )
+        config = RobertaConfig(
+            vocab_size=vocab_size,
+            max_position_embeddings=self.max_len,
+            num_attention_heads=12,
+            num_hidden_layers=6,
+            type_vocab_size=1,
+        )
 
-        # self.model = RobertaForMaskedLM(config=config)
+        self.model = RobertaForMaskedLM(config=config)
 
         # config = AutoConfig(
         #     vocab_size=vocab_size,
@@ -34,8 +34,8 @@ class BabyLMModel(pl.LightningModule):
         #     num_hidden_layers=6,
         #     type_vocab_size=1,
         # )
-        self.model = AutoModelForMaskedLM.from_pretrained("lgcharpe/ELC_BERT_small_baby_10M", trust_remote_code=True) #TODO , config=config
-        self.model.init_weights()
+        # self.model = AutoModelForMaskedLM.from_pretrained("lgcharpe/ELC_BERT_small_baby_10M", trust_remote_code=True) #TODO , config=config
+        # self.model.init_weights()
 
         self.best_val_loss = math.inf
 
@@ -47,7 +47,7 @@ class BabyLMModel(pl.LightningModule):
         huggingface_ckpt_dir = os.path.join(self.logger.log_dir, path)
         os.makedirs(huggingface_ckpt_dir, exist_ok=True)
 
-        self.model.save_pretrained(huggingface_ckpt_dir, safe_serialization=False)
+        self.model.save_pretrained(huggingface_ckpt_dir)
         tokenizer = self.trainer.datamodule.tokenizer
         tokenizer.save_pretrained(huggingface_ckpt_dir)
 
@@ -58,10 +58,10 @@ class BabyLMModel(pl.LightningModule):
         if self.trainer.datamodule.fb:
             batch, batch_fb = batch["lm"], batch["fb"]
             out_lm = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
-                             ) #token_type_ids=batch.token_type_ids
+                             token_type_ids=batch.token_type_ids)
 
             out_fb = self.model(input_ids=batch_fb.input_ids, attention_mask=batch_fb.attention_mask,
-                                ) #token_type_ids=batch_fb.token_type_ids
+                                token_type_ids=batch.token_type_ids)
             logits = out_fb["logits"]
             target_logits = [logit[range(logit.shape[0]), input] for logit, input in zip(logits, batch_fb.input_ids)]
             target_logits = torch.stack(target_logits)
@@ -81,7 +81,7 @@ class BabyLMModel(pl.LightningModule):
             loss = loss_lm + loss_rl
         else:
             out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
-                             ) #token_type_ids=batch.token_type_ids
+                             token_type_ids=batch.token_type_ids)
             loss = out["loss"]
 
         self.log(f"train_loss", loss, prog_bar=True)
@@ -90,7 +90,7 @@ class BabyLMModel(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
-                         ) #token_type_ids=batch.token_type_ids
+                         token_type_ids=batch.token_type_ids)
         self.log(f"val_loss", out["loss"], prog_bar=True)
 
     def on_save_checkpoint(self, checkpoint):
