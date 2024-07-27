@@ -1,6 +1,7 @@
 name: lm_feedback
 channels:
   - defaults
+  - pytorch
 dependencies:
   - cpuonly
   - pandas
