@@ -6,7 +6,7 @@ dependencies:
   - lightning
   - matplotlib
   - pandas
-  - pip=23.0.1
+  - pip
   - python==3.12.4
   - pytorch
   - tokenizers
