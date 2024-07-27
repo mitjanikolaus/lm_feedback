@@ -2,11 +2,12 @@ name: lm_feedback
 channels:
   - defaults
   - pytorch
+  - conda-forge
 dependencies:
   - cpuonly
   - pandas
   - python==3.12.3
   - pytorch
-  - transformers==4.43.2
   - lightning
+  - conda-forge::transformers==4.43.2
   - conda-forge::huggingface_hub=0.24.2
