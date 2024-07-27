@@ -47,7 +47,7 @@ class BabyLMModel(pl.LightningModule):
         huggingface_ckpt_dir = os.path.join(self.logger.log_dir, path)
         os.makedirs(huggingface_ckpt_dir, exist_ok=True)
 
-        self.model.save_pretrained(huggingface_ckpt_dir)
+        self.model.save_pretrained(huggingface_ckpt_dir, safe_serialization=False)
         tokenizer = self.trainer.datamodule.tokenizer
         tokenizer.save_pretrained(huggingface_ckpt_dir)
 
