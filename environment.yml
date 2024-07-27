@@ -2,13 +2,15 @@ name: lm_feedback
 channels:
   - defaults
   - pytorch
+  - nvidia
 dependencies:
   - lightning
   - matplotlib
   - pandas
   - pip
-  - python==3.12.4
+  - python=3.12.4
   - pytorch
+  - pytorch-cuda=11.8
   - tokenizers
   - conda-forge::transformers=4.43
   - conda-forge::huggingface_hub=0.24.2

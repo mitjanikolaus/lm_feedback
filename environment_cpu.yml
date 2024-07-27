@@ -6,8 +6,8 @@ channels:
 dependencies:
   - cpuonly
   - pandas
-  - python==3.12.3
+  - python=3.12
   - pytorch
   - lightning
-  - conda-forge::transformers==4.43.2
-  - conda-forge::huggingface_hub=0.24.2
+  - transformers=4.43.3
+  - huggingface_hub=0.24
