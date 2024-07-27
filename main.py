@@ -91,7 +91,7 @@ class BabyLMModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
                          token_type_ids=batch.token_type_ids)
-        self.log(f"val_loss", out["loss"], prog_bar=True)
+        self.log(f"val_loss", out["loss"], prog_bar=True, sync_dist=True)
 
     def on_save_checkpoint(self, checkpoint):
         new_best_val_loss = checkpoint["callbacks"]["EarlyStopping{'monitor': 'val_loss', 'mode': 'min'}"]["best_score"].item()
