@@ -58,10 +58,10 @@ class BabyLMModel(pl.LightningModule):
         if self.trainer.datamodule.fb:
             batch, batch_fb = batch["lm"], batch["fb"]
             out_lm = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
-                             token_type_ids=batch.token_type_ids)
+                             ) #token_type_ids=batch.token_type_ids
 
             out_fb = self.model(input_ids=batch_fb.input_ids, attention_mask=batch_fb.attention_mask,
-                                token_type_ids=batch_fb.token_type_ids)
+                                ) #token_type_ids=batch_fb.token_type_ids
             logits = out_fb["logits"]
             target_logits = [logit[range(logit.shape[0]), input] for logit, input in zip(logits, batch_fb.input_ids)]
             target_logits = torch.stack(target_logits)
