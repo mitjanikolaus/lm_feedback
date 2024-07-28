@@ -10,7 +10,7 @@ import pytorch_lightning as pl
 import pandas as pd
 from transformers import DataCollatorForLanguageModeling, RobertaTokenizerFast, DataCollatorWithPadding
 
-from utils import DATA_DIR, PATH_DEV, TRAINING_TRACK_DEFAULT
+from utils import DATA_DIR, PATH_DEV, TRAINING_TRACK_DEFAULT, SPEAKER_CODES_CAREGIVER
 
 data_path_dev = os.path.join(DATA_DIR, PATH_DEV)
 
@@ -36,7 +36,7 @@ def train_tokenizer(save_dir, vocab_size, training_track):
     print(f"Saved trained tokenizer to {save_dir}")
 
 
-DATA_NAMES = ["aochildes", "bnc_spoken", "cbt", "children_stories", "gutenberg", "open_subtitles", "qed",
+DATA_NAMES = ["childes", "bnc_spoken", "cbt", "children_stories", "gutenberg", "open_subtitles", "qed",
               "simple_wikipedia", "switchboard", "wikipedia"]
 
 
@@ -91,6 +91,15 @@ class BabyLMDataModule(pl.LightningDataModule):
         return validation_dataloader
 
 
+SPEAKER_CODES_CAREGIVER_PREFIXES = ['*' + speaker_code + ':\t' for speaker_code in SPEAKER_CODES_CAREGIVER]
+
+
+def preprocess_childes_data(lines):
+    for line in lines:
+        if line[:6] in SPEAKER_CODES_CAREGIVER_PREFIXES:
+            yield line[6:].strip()
+
+
 class BabyLMDataset(Dataset):
     def __init__(self, data_path, tokenizer, max_len, subset, split):
         self.tokenizer = tokenizer
@@ -99,10 +108,14 @@ class BabyLMDataset(Dataset):
 
         print("Loading LM data: ")
         for src_file in subset:
-            src_file = os.path.join(data_path, f"{src_file}.{split}")
-            print(src_file)
-            lines = Path(src_file).read_text(encoding="utf-8").splitlines()
+            src_file_path = os.path.join(data_path, f"{src_file}.{split}")
+            print(src_file_path)
+            lines = Path(src_file_path).read_text(encoding="utf-8").splitlines()
             lines = [l for l in lines if l] # Discard empty lines
+
+            if src_file == "childes":
+                lines = preprocess_childes_data(lines)
+
             self.examples += lines
 
     def __len__(self):
