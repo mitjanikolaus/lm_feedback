@@ -100,10 +100,9 @@ class BabyLMModel(pl.LightningModule):
             with torch.no_grad():
                 out = self.model(**inputs)
             predicted_token = out.logits[0, -1].argmax().cpu().item()
-            print(predicted_token)
             sequence += tokenizer.decode(predicted_token)
 
-        print("Generated sample: ", sequence)
+        print("Generated sample: ", sequence.replace((SEQUENCE_START_TOKEN, "")))
 
     def on_validation_epoch_end(self):
         self.generate_sample_sentence()
