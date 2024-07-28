@@ -9,6 +9,9 @@ import pytorch_lightning as pl
 from data import BabyLMDataModule, SEQUENCE_START_TOKEN, MASK_TOKEN
 
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
 class BabyLMModel(pl.LightningModule):
     def __init__(self, vocab_size=10000, initial_lr=1e-4, rl_loss_weight=0, max_len=128):
         super().__init__()
@@ -92,7 +95,7 @@ class BabyLMModel(pl.LightningModule):
 
         sequence = SEQUENCE_START_TOKEN
         for step in range(10):
-            inputs = tokenizer(sequence + MASK_TOKEN, return_tensors="pt", add_special_tokens=False)
+            inputs = tokenizer(sequence + MASK_TOKEN, return_tensors="pt", add_special_tokens=False).to(device)
 
             with torch.no_grad():
                 out = self.model(**inputs)
