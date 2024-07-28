@@ -144,8 +144,8 @@ def cli_main():
         trainer_defaults={
             "callbacks": [checkpoint_callback, early_stop_callback],
             "max_epochs": 1000,
-            "check_val_every_n_epoch": None,
-            "val_check_interval": 10000,
+            "check_val_every_n_epoch": 1,
+            # "val_check_interval": 10000,
             "log_every_n_steps": 1000,
             "num_sanity_val_steps": 3,
             "limit_val_batches": 100,
