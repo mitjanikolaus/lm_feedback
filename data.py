@@ -39,8 +39,7 @@ def train_tokenizer(save_dir, vocab_size, training_track):
     print(f"Saved trained tokenizer to {save_dir}")
 
 
-DATA_NAMES = ["childes", "bnc_spoken", "cbt", "children_stories", "gutenberg", "open_subtitles", "qed",
-              "simple_wikipedia", "switchboard", "wikipedia"]
+DATA_NAMES = ["childes", "bnc_spoken", "gutenberg", "open_subtitles", "simple_wiki", "switchboard"]
 
 
 class BabyLMDataModule(pl.LightningDataModule):
