@@ -6,11 +6,11 @@ from pytorch_lightning.cli import LightningCLI
 from transformers import RobertaConfig, RobertaForMaskedLM, AutoModelForMaskedLM, AutoConfig
 from torch.optim import AdamW
 import pytorch_lightning as pl
-from data import BabyLMDataModule
+from data import BabyLMDataModule, SEQUENCE_START_TOKEN, MASK_TOKEN
 
 
 class BabyLMModel(pl.LightningModule):
-    def __init__(self, vocab_size=32000, initial_lr=1e-4, rl_loss_weight=0, max_len=128):
+    def __init__(self, vocab_size=10000, initial_lr=1e-4, rl_loss_weight=0, max_len=128):
         super().__init__()
 
         self.save_hyperparameters()
@@ -27,13 +27,6 @@ class BabyLMModel(pl.LightningModule):
 
         self.model = RobertaForMaskedLM(config=config)
 
-        # config = AutoConfig(
-        #     vocab_size=vocab_size,
-        #     max_position_embeddings=self.max_len,
-        #     num_attention_heads=12,
-        #     num_hidden_layers=6,
-        #     type_vocab_size=1,
-        # )
         # self.model = AutoModelForMaskedLM.from_pretrained("lgcharpe/ELC_BERT_small_baby_10M", trust_remote_code=True) #TODO , config=config
         # self.model.init_weights()
 
@@ -92,6 +85,26 @@ class BabyLMModel(pl.LightningModule):
         out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
                          token_type_ids=batch.token_type_ids)
         self.log(f"val_loss", out["loss"], prog_bar=True, sync_dist=True)
+        return out
+
+    def generate_sample_sentence(self):
+        tokenizer = self.trainer.datamodule.tokenizer
+
+        sequence = SEQUENCE_START_TOKEN
+        for step in range(10):
+            inputs = tokenizer(sequence + MASK_TOKEN, return_tensors="pt", add_special_tokens=False)
+
+            with torch.no_grad():
+                out = self.model(**inputs)
+            predicted_token = out.logits[0, -1].argmax().cpu().item()
+            print(predicted_token)
+            sequence += tokenizer.decode(predicted_token)
+
+        print("Generated sample: ", sequence)
+
+    def on_validation_epoch_end(self):
+        self.generate_sample_sentence()
+
 
     def on_save_checkpoint(self, checkpoint):
         new_best_val_loss = checkpoint["callbacks"]["EarlyStopping{'monitor': 'val_loss', 'mode': 'min'}"]["best_score"].item()

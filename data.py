@@ -12,11 +12,14 @@ from transformers import DataCollatorForLanguageModeling, RobertaTokenizerFast, 
 
 from utils import DATA_DIR, PATH_DEV, TRAINING_TRACK_DEFAULT, SPEAKER_CODES_CAREGIVER
 
+SEQUENCE_START_TOKEN = "<s>"
+MASK_TOKEN = "<mask>"
+
 data_path_dev = os.path.join(DATA_DIR, PATH_DEV)
 
 
 def train_tokenizer(save_dir, vocab_size, training_track):
-    print(f"Training tokenizer for {vocab_size} (track {training_track}) .. ")
+    print(f"Training tokenizer for vocab size {vocab_size} (track {training_track}) .. ")
     base_path = os.path.join(DATA_DIR, training_track)
     paths = [str(x) for x in Path(base_path).glob("*.train")]
 
@@ -25,11 +28,11 @@ def train_tokenizer(save_dir, vocab_size, training_track):
 
     # Customize training
     tokenizer.train(files=paths, vocab_size=vocab_size, min_frequency=2, special_tokens=[
-        "<s>",
+        SEQUENCE_START_TOKEN,
         "<pad>",
         "</s>",
         "<unk>",
-        "<mask>",
+        MASK_TOKEN,
     ])
 
     tokenizer.save_model(save_dir)
@@ -41,7 +44,7 @@ DATA_NAMES = ["childes", "bnc_spoken", "cbt", "children_stories", "gutenberg", "
 
 
 class BabyLMDataModule(pl.LightningDataModule):
-    def __init__(self, training_track=TRAINING_TRACK_DEFAULT, fb=False, fb_data_path=None, vocab_size=32000,
+    def __init__(self, training_track=TRAINING_TRACK_DEFAULT, fb=False, fb_data_path=None, vocab_size=10000,
                  max_len=128, batch_size=128, num_workers=4, subset=None):
         super().__init__()
         if subset is None:
@@ -111,7 +114,7 @@ class BabyLMDataset(Dataset):
             src_file_path = os.path.join(data_path, f"{src_file}.{split}")
             print(src_file_path)
             lines = Path(src_file_path).read_text(encoding="utf-8").splitlines()
-            lines = [l for l in lines if l] # Discard empty lines
+            lines = [l for l in lines if l]     # Discard empty lines
 
             if src_file == "childes":
                 lines = preprocess_childes_data(lines)
