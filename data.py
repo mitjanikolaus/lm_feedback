@@ -57,7 +57,7 @@ class BabyLMDataModule(pl.LightningDataModule):
 
         subset_name = ""
         if subset is not None:
-            subset_name = "_subset" + "_".join(subset)
+            subset_name = "_subset_" + "_".join(subset)
 
         tokenizer_dir = os.path.join("tokenizers", f"lm_feedback_{training_track}_vocab_{vocab_size}{subset_name}")
         os.makedirs(tokenizer_dir, exist_ok=True)
