@@ -55,7 +55,11 @@ class BabyLMDataModule(pl.LightningDataModule):
         self.num_workers = num_workers
         self.fb = fb
 
-        tokenizer_dir = os.path.join("tokenizers", f"lm_feedback_{training_track}_vocab_{vocab_size}")
+        subset_name = ""
+        if subset is not None:
+            subset_name = "_subset" + "_".join(subset)
+
+        tokenizer_dir = os.path.join("tokenizers", f"lm_feedback_{training_track}_vocab_{vocab_size}{subset_name}")
         os.makedirs(tokenizer_dir, exist_ok=True)
 
         if not os.path.isfile(os.path.join(tokenizer_dir, "vocab.json")):
