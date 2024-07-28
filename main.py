@@ -90,22 +90,25 @@ class BabyLMModel(pl.LightningModule):
         self.log(f"val_loss", out["loss"], prog_bar=True, sync_dist=True)
         return out
 
-    def generate_sample_sentence(self):
+    def generate_sample_sentences(self):
         tokenizer = self.trainer.datamodule.tokenizer
 
-        sequence = SEQUENCE_START_TOKEN
-        for step in range(10):
-            inputs = tokenizer(sequence + MASK_TOKEN, return_tensors="pt", add_special_tokens=False).to(device)
+        generation_prefixes = ["", "it's", "she", "hello", "do"]
+        print("\nGenerated samples:")
+        for prefix in generation_prefixes:
+            sequence = SEQUENCE_START_TOKEN + prefix
+            for step in range(10):
+                inputs = tokenizer(sequence + MASK_TOKEN, return_tensors="pt", add_special_tokens=False).to(device)
 
-            with torch.no_grad():
-                out = self.model(**inputs)
-            predicted_token = out.logits[0, -1].argmax().cpu().item()
-            sequence += tokenizer.decode(predicted_token)
+                with torch.no_grad():
+                    out = self.model(**inputs)
+                predicted_token = out.logits[0, -1].argmax().cpu().item()
+                sequence += tokenizer.decode(predicted_token)
 
-        print("Generated sample: ", sequence.replace(SEQUENCE_START_TOKEN, ""))
+            print(sequence.replace(SEQUENCE_START_TOKEN, ""))
 
     def on_validation_epoch_end(self):
-        self.generate_sample_sentence()
+        self.generate_sample_sentences()
 
 
     def on_save_checkpoint(self, checkpoint):
