@@ -43,8 +43,8 @@ DATA_NAMES = ["childes", "bnc_spoken", "gutenberg", "open_subtitles", "simple_wi
 
 
 class BabyLMDataModule(pl.LightningDataModule):
-    def __init__(self, training_track=TRAINING_TRACK_DEFAULT, fb=False, fb_data_path=None, vocab_size=10000,
-                 max_len=128, batch_size=128, num_workers=4, subset=None):
+    def __init__(self, training_track=TRAINING_TRACK_DEFAULT, fb=False, fb_data_path=None, vocab_size=5000,
+                 max_len=64, batch_size=128, num_workers=4, subset=None):
         super().__init__()
         if subset is None:
             subset = DATA_NAMES

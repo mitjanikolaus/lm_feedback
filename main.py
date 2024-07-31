@@ -13,7 +13,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class BabyLMModel(pl.LightningModule):
-    def __init__(self, vocab_size=10000, initial_lr=1e-4, rl_loss_weight=0, max_len=128):
+    def __init__(self, vocab_size=5000, initial_lr=1e-4, rl_loss_weight=0, max_len=64):
         super().__init__()
 
         self.save_hyperparameters()
@@ -24,8 +24,10 @@ class BabyLMModel(pl.LightningModule):
             vocab_size=vocab_size,
             max_position_embeddings=self.max_len,
             num_attention_heads=12,
-            num_hidden_layers=6,
+            num_hidden_layers=12,
             type_vocab_size=1,
+            hidden_size=256,
+            intermediate_size=1024,
         )
 
         self.model = RobertaForMaskedLM(config=config)
