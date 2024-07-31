@@ -26,7 +26,7 @@ class BabyLMModel(pl.LightningModule):
             num_attention_heads=12,
             num_hidden_layers=12,
             type_vocab_size=1,
-            hidden_size=256,
+            hidden_size=384,
             intermediate_size=1024,
         )
 
