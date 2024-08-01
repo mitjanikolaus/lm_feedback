@@ -3,7 +3,7 @@ import os
 import torch
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.cli import LightningCLI
-from transformers import RobertaConfig, RobertaForMaskedLM, AutoModelForMaskedLM, AutoConfig
+from transformers import RobertaConfig, RobertaForMaskedLM, AutoModelForMaskedLM, AutoConfig, LlamaForCausalLM, LlamaConfig
 from torch.optim import AdamW
 import pytorch_lightning as pl
 from data import BabyLMDataModule, SEQUENCE_START_TOKEN, MASK_TOKEN
@@ -13,29 +13,54 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class BabyLMModel(pl.LightningModule):
-    def __init__(self, vocab_size=5000, initial_lr=1e-4, rl_loss_weight=0, max_len=64):
+    def __init__(self, vocab_size=5000, initial_lr=1e-4, rl_loss_weight=0, max_len=128, model_name="babyllama"):
         super().__init__()
 
         self.save_hyperparameters()
 
         self.max_len = max_len
+        self.vocab_size = vocab_size
+        self.model_name = model_name
+        self.model_family = "causal" if model_name == "babyllama" else "masked"
 
-        config = RobertaConfig(
-            vocab_size=vocab_size,
-            max_position_embeddings=self.max_len,
-            num_attention_heads=12,
-            num_hidden_layers=12,
-            type_vocab_size=1,
-            hidden_size=384,
-            intermediate_size=1024,
-        )
+    def configure_model(self):
+        # config = RobertaConfig(
+        #     vocab_size=vocab_size,
+        #     max_position_embeddings=self.max_len,
+        #     num_attention_heads=12,
+        #     num_hidden_layers=12,
+        #     type_vocab_size=1,
+        #     hidden_size=384,
+        #     intermediate_size=1024,
+        # )
+        tokenizer = self.trainer.datamodule.tokenizer
+        config = LlamaConfig(**{
+            "attention_bias": False,
+            "attention_dropout": 0.0,
+            "bos_token_id": tokenizer.bos_token_id,
+            "eos_token_id": tokenizer.eos_token_id,
+            "pad_token_id": tokenizer.pad_token_id,
+            "hidden_act": "silu",
+            "hidden_size": 512,
+            "initializer_range": 0.02,
+            "intermediate_size": 1024,
+            "num_attention_heads": 8,
+            "num_hidden_layers": 16,
+            "num_key_value_heads": 8,
+            "pretraining_tp": 1,
+            "rms_norm_eps": 1e-06,
+            "rope_scaling": None,
+            "rope_theta": 10000.0,
+            "tie_word_embeddings": False,
+            "vocab_size": self.vocab_size,
+            "max_position_embeddings": self.max_len,
+        })
 
-        self.model = RobertaForMaskedLM(config=config)
-
+        # self.model = RobertaForMaskedLM(config=config)
         # self.model = AutoModelForMaskedLM.from_pretrained("lgcharpe/ELC_BERT_small_baby_10M", trust_remote_code=True) #TODO , config=config
-        # self.model.init_weights()
+        self.model = LlamaForCausalLM(config)
 
-        self.best_val_loss = math.inf
+        # self.model.init_weights()
 
     def save_huggingface_checkpoint(self, is_best):
         """Self checkpoint that is compatible with huggingface"""
@@ -50,16 +75,24 @@ class BabyLMModel(pl.LightningModule):
         tokenizer.save_pretrained(huggingface_ckpt_dir)
 
     def on_fit_start(self) -> None:
+        self.best_val_loss = math.inf
         self.save_huggingface_checkpoint(is_best=True)
 
     def training_step(self, batch, batch_idx):
         if self.trainer.datamodule.fb:
             batch, batch_fb = batch["lm"], batch["fb"]
-            out_lm = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
-                             token_type_ids=batch.token_type_ids)
+            if self.model_family == "causal":
+                out_lm = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels)
+            else:
+                out_lm = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
+                                 token_type_ids=batch.token_type_ids)
 
-            out_fb = self.model(input_ids=batch_fb.input_ids, attention_mask=batch_fb.attention_mask,
-                                token_type_ids=batch_fb.token_type_ids)
+            if self.model_family == "causal":
+                out_fb = self.model(input_ids=batch_fb.input_ids, attention_mask=batch_fb.attention_mask, labels=batch_fb.labels)
+            else:
+                out_fb = self.model(input_ids=batch_fb.input_ids, attention_mask=batch_fb.attention_mask, labels=batch_fb.labels,
+                                 token_type_ids=batch_fb.token_type_ids)
+
             logits = out_fb["logits"]
             target_logits = [logit[range(logit.shape[0]), input] for logit, input in zip(logits, batch_fb.input_ids)]
             target_logits = torch.stack(target_logits)
@@ -78,8 +111,12 @@ class BabyLMModel(pl.LightningModule):
 
             loss = loss_lm + loss_rl
         else:
-            out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
-                             token_type_ids=batch.token_type_ids)
+            if self.model_family == "causal":
+                out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels)
+            else:
+                out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
+                                 token_type_ids=batch.token_type_ids)
+
             loss = out["loss"]
 
         self.log(f"train_loss", loss, prog_bar=True)
@@ -87,20 +124,26 @@ class BabyLMModel(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
-                         token_type_ids=batch.token_type_ids)
+        if self.model_family == "causal":
+            out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels)
+        else:
+            out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
+                             token_type_ids=batch.token_type_ids)
         self.log(f"val_loss", out["loss"], prog_bar=True, sync_dist=True)
         return out
 
     def generate_sample_sentences(self):
         tokenizer = self.trainer.datamodule.tokenizer
 
-        generation_prefixes = ["", "it's", "she", "hello", "do"]
+        generation_prefixes = ["", "it", "it's", "she", "hello", "do"]
         print("\nGenerated samples:")
         for prefix in generation_prefixes:
             sequence = SEQUENCE_START_TOKEN + prefix
             for step in range(10):
-                inputs = tokenizer(sequence + MASK_TOKEN, return_tensors="pt", add_special_tokens=False).to(device)
+                if self.model_family == "causal":
+                    inputs = tokenizer(sequence, return_tensors="pt", add_special_tokens=False).to(device)
+                else:
+                    inputs = tokenizer(sequence + MASK_TOKEN, return_tensors="pt", add_special_tokens=False).to(device)
 
                 with torch.no_grad():
                     out = self.model(**inputs)
@@ -111,7 +154,6 @@ class BabyLMModel(pl.LightningModule):
 
     def on_validation_epoch_end(self):
         self.generate_sample_sentences()
-
 
     def on_save_checkpoint(self, checkpoint):
         new_best_val_loss = checkpoint["callbacks"]["EarlyStopping{'monitor': 'val_loss', 'mode': 'min'}"]["best_score"].item()

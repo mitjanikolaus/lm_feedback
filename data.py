@@ -53,7 +53,7 @@ DATA_NAMES = [DATA_FILE_CHILDES, DATA_FILE_BNC, DATA_FILE_GUTENBERG, DATA_FILE_O
 
 class BabyLMDataModule(pl.LightningDataModule):
     def __init__(self, training_track=TRAINING_TRACK_STRICT_SMALL, fb=False, fb_data_path=None, vocab_size=5000,
-                 max_len=64, batch_size=128, num_workers=4, subset=None):
+                 max_len=128, batch_size=128, num_workers=4, subset=None, causal=True):
         super().__init__()
         if subset is None:
             data_file_names = DATA_NAMES
@@ -103,7 +103,7 @@ class BabyLMDataModule(pl.LightningDataModule):
             self.train_fb_dataset = FeedbackDataset(fb_data_path, self.tokenizer, max_len)
 
         self.collate_fn = DataCollatorForLanguageModeling(
-            tokenizer=self.tokenizer, mlm=True, mlm_probability=0.15
+            tokenizer=self.tokenizer, mlm=not causal, mlm_probability=0.15 if not causal else None
         )
         self.collate_fn_fb = DataCollatorWithPadding(tokenizer=self.tokenizer)
 
