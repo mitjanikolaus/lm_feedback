@@ -6,7 +6,7 @@ channels:
 dependencies:
   - cpuonly
   - pandas
-  - python=3.12
+  - python=3.10
   - pytorch
   - lightning
   - transformers=4.43.3
