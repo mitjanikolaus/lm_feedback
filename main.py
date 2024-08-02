@@ -14,7 +14,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class BabyLMModel(pl.LightningModule):
-    def __init__(self, vocab_size=5000, initial_lr=1e-4, rl_loss_weight=0, max_len=128, model_name="babyllama",
+    def __init__(self, vocab_size=5000, initial_lr=1e-3, rl_loss_weight=0, max_len=128, model_name="babyllama",
                  warmup_steps=200):
         super().__init__()
 
@@ -200,7 +200,8 @@ def cli_main():
         save_config_kwargs={"overwrite": True},
         trainer_defaults={
             "callbacks": [checkpoint_callback, early_stop_callback],
-            "max_steps": 150000,
+            "max_steps": 15000,
+            "accumulate_grad_batches": 10,
             "check_val_every_n_epoch": 1,
             # "val_check_interval": 10000,
             "log_every_n_steps": 1000,
