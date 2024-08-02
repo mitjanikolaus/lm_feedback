@@ -1,19 +1,19 @@
 import math
 import os
 import torch
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+from pytorch_lightning import LightningModule
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
 from pytorch_lightning.cli import LightningCLI
 from pytorch_lightning.loggers import WandbLogger
 from transformers import RobertaConfig, RobertaForMaskedLM, LlamaForCausalLM, LlamaConfig, \
     get_cosine_schedule_with_warmup
 from torch.optim import AdamW
-import pytorch_lightning as pl
 from data import BabyLMDataModule, SEQUENCE_START_TOKEN, MASK_TOKEN
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-class BabyLMModel(pl.LightningModule):
+class BabyLMModel(LightningModule):
     def __init__(self, vocab_size=5000, initial_lr=1e-3, rl_loss_weight=0, max_len=128, model_name="babyllama",
                  warmup_steps=200):
         super().__init__()
@@ -192,6 +192,7 @@ def cli_main():
                                           filename="{epoch:02d}-{val_loss:.2f}")
     early_stop_callback = EarlyStopping(monitor="val_loss", patience=10, verbose=True, mode="min",
                                         min_delta=0.01)
+    lr_monitor = LearningRateMonitor(logging_interval='step')
 
     LightningCLI(
         BabyLMModel,
@@ -199,7 +200,7 @@ def cli_main():
         seed_everything_default=1,
         save_config_kwargs={"overwrite": True},
         trainer_defaults={
-            "callbacks": [checkpoint_callback, early_stop_callback],
+            "callbacks": [checkpoint_callback, early_stop_callback, lr_monitor],
             "max_steps": 15000,
             "accumulate_grad_batches": 10,
             "check_val_every_n_epoch": 1,
