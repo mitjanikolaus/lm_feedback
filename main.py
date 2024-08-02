@@ -3,23 +3,25 @@ import os
 import torch
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.cli import LightningCLI
-from transformers import RobertaConfig, RobertaForMaskedLM, AutoModelForMaskedLM, AutoConfig, LlamaForCausalLM, LlamaConfig
+from transformers import RobertaConfig, RobertaForMaskedLM, LlamaForCausalLM, LlamaConfig, \
+    get_cosine_schedule_with_warmup
 from torch.optim import AdamW
 import pytorch_lightning as pl
 from data import BabyLMDataModule, SEQUENCE_START_TOKEN, MASK_TOKEN
-
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class BabyLMModel(pl.LightningModule):
-    def __init__(self, vocab_size=5000, initial_lr=1e-4, rl_loss_weight=0, max_len=128, model_name="babyllama"):
+    def __init__(self, vocab_size=5000, initial_lr=1e-4, rl_loss_weight=0, max_len=128, model_name="babyllama",
+                 warmup_steps=300):
         super().__init__()
 
         self.save_hyperparameters()
 
         self.max_len = max_len
         self.vocab_size = vocab_size
+
         self.model_name = model_name
         self.model_family = "causal" if model_name == "babyllama" else "masked"
 
@@ -85,13 +87,15 @@ class BabyLMModel(pl.LightningModule):
                 out_lm = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels)
             else:
                 out_lm = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
-                                 token_type_ids=batch.token_type_ids)
+                                    token_type_ids=batch.token_type_ids)
 
             if self.model_family == "causal":
-                out_fb = self.model(input_ids=batch_fb.input_ids, attention_mask=batch_fb.attention_mask, labels=batch_fb.labels)
+                out_fb = self.model(input_ids=batch_fb.input_ids, attention_mask=batch_fb.attention_mask,
+                                    labels=batch_fb.labels)
             else:
-                out_fb = self.model(input_ids=batch_fb.input_ids, attention_mask=batch_fb.attention_mask, labels=batch_fb.labels,
-                                 token_type_ids=batch_fb.token_type_ids)
+                out_fb = self.model(input_ids=batch_fb.input_ids, attention_mask=batch_fb.attention_mask,
+                                    labels=batch_fb.labels,
+                                    token_type_ids=batch_fb.token_type_ids)
 
             logits = out_fb["logits"]
             target_logits = [logit[range(logit.shape[0]), input] for logit, input in zip(logits, batch_fb.input_ids)]
@@ -103,7 +107,7 @@ class BabyLMModel(pl.LightningModule):
 
             # entropy_loss = effective_entropy.mean() * args.entropy_coeff
 
-            loss_lm = (1-self.hparams.rl_loss_weight) * out_lm["loss"]
+            loss_lm = (1 - self.hparams.rl_loss_weight) * out_lm["loss"]
             loss_rl = self.hparams.rl_loss_weight * policy_loss
 
             self.log(f"train_loss_lm", loss_lm)
@@ -156,7 +160,8 @@ class BabyLMModel(pl.LightningModule):
         self.generate_sample_sentences()
 
     def on_save_checkpoint(self, checkpoint):
-        new_best_val_loss = checkpoint["callbacks"]["EarlyStopping{'monitor': 'val_loss', 'mode': 'min'}"]["best_score"].item()
+        new_best_val_loss = checkpoint["callbacks"]["EarlyStopping{'monitor': 'val_loss', 'mode': 'min'}"][
+            "best_score"].item()
         if new_best_val_loss < self.best_val_loss:
             print("saving best checkpoint")
             self.best_val_loss = new_best_val_loss
@@ -167,12 +172,14 @@ class BabyLMModel(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = AdamW(params=self.model.parameters(), lr=self.hparams.initial_lr)
-        return optimizer
-
-    # def on_fit_start(self):
-    #     # Set which metrics to use for hyperparameter tuning
-    #     metrics = ["val_loss"]
-    #     self.logger.log_hyperparams(self.hparams, {m: 100 for m in metrics})
+        scheduler = get_cosine_schedule_with_warmup(
+            optimizer, num_warmup_steps=self.hparams.warmup_steps,
+            num_training_steps=self.trainer.max_steps,
+        )
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": scheduler
+        }
 
 
 def cli_main():
@@ -187,17 +194,17 @@ def cli_main():
         seed_everything_default=1,
         trainer_defaults={
             "callbacks": [checkpoint_callback, early_stop_callback],
-            "max_epochs": 1000,
+            "max_steps": 150000,
             "check_val_every_n_epoch": 1,
             # "val_check_interval": 10000,
-            "log_every_n_steps": 1000,
+            "log_every_n_steps": 5000,
             "num_sanity_val_steps": 3,
             "limit_val_batches": 100,
             "max_time": "00:60:00:00",  # 60 hours
             "precision": "16-mixed",
             "reload_dataloaders_every_n_epochs": 1,
         },
-   )
+    )
 
 
 if __name__ == "__main__":
