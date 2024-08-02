@@ -3,6 +3,7 @@ import os
 import torch
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.cli import LightningCLI
+from pytorch_lightning.loggers import WandbLogger
 from transformers import RobertaConfig, RobertaForMaskedLM, LlamaForCausalLM, LlamaConfig, \
     get_cosine_schedule_with_warmup
 from torch.optim import AdamW
@@ -69,7 +70,11 @@ class BabyLMModel(pl.LightningModule):
         path = "ckpt_huggingface_best" if is_best else "ckpt_huggingface_last"
         print(f"Saving huggingface-compatible checkpoint to {path}")
 
-        huggingface_ckpt_dir = os.path.join(self.logger.log_dir, path)
+        if isinstance(self.logger, WandbLogger):
+            huggingface_ckpt_dir = os.path.join("lightning_logs", f"version_{self.logger.version}", path)
+        else:
+            huggingface_ckpt_dir = os.path.join(self.logger.log_dir, path)
+
         os.makedirs(huggingface_ckpt_dir, exist_ok=True)
 
         self.model.save_pretrained(huggingface_ckpt_dir)
@@ -192,6 +197,7 @@ def cli_main():
         BabyLMModel,
         BabyLMDataModule,
         seed_everything_default=1,
+        save_config_kwargs={"overwrite": True},
         trainer_defaults={
             "callbacks": [checkpoint_callback, early_stop_callback],
             "max_steps": 150000,
