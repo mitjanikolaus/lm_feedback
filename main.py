@@ -206,7 +206,6 @@ def cli_main():
             "log_every_n_steps": 1000,
             "num_sanity_val_steps": 3,
             "limit_val_batches": 100,
-            "max_time": "00:60:00:00",  # 60 hours
             "precision": "16-mixed",
             "reload_dataloaders_every_n_epochs": 1,
         },
