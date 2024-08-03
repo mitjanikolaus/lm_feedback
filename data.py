@@ -53,7 +53,7 @@ DATA_NAMES = [DATA_FILE_CHILDES, DATA_FILE_BNC, DATA_FILE_GUTENBERG, DATA_FILE_O
 
 class BabyLMDataModule(pl.LightningDataModule):
     def __init__(self, training_track=TRAINING_TRACK_STRICT_SMALL, fb=False, fb_data_path=None, vocab_size=5000,
-                 max_len=128, batch_size=160, num_workers=4, subset=None, causal=True):
+                 max_len=128, batch_size=150, num_workers=4, subset=None, causal=True):
         super().__init__()
         if subset is None:
             data_file_names = DATA_NAMES
