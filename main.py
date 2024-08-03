@@ -191,15 +191,13 @@ def cli_main():
                                           filename="{epoch:02d}-{val_loss:.2f}")
     early_stop_callback = EarlyStopping(monitor="val_loss", patience=10, verbose=True, mode="min",
                                         min_delta=0.01)
-    lr_monitor = LearningRateMonitor(logging_interval='step', log_momentum=True, log_weight_decay=True)
-
     LightningCLI(
         BabyLMModel,
         BabyLMDataModule,
         seed_everything_default=1,
         save_config_kwargs={"overwrite": True},
         trainer_defaults={
-            "callbacks": [checkpoint_callback, early_stop_callback, lr_monitor],
+            "callbacks": [checkpoint_callback, early_stop_callback],
             "max_steps": 150000,
             "accumulate_grad_batches": 1,
             "val_check_interval": 0.5,
