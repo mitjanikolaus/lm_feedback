@@ -192,7 +192,7 @@ def cli_main():
                                           filename="{epoch:02d}-{val_loss:.2f}")
     early_stop_callback = EarlyStopping(monitor="val_loss", patience=10, verbose=True, mode="min",
                                         min_delta=0.01)
-    lr_monitor = LearningRateMonitor(logging_interval='step')
+    lr_monitor = LearningRateMonitor(logging_interval='step', log_momentum=True, log_weight_decay=True)
 
     LightningCLI(
         BabyLMModel,
