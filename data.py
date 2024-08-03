@@ -60,7 +60,9 @@ class BabyLMDataModule(pl.LightningDataModule):
         elif isinstance(subset, str):
             data_file_names = [subset]
 
+        self.vocab_size = vocab_size
         self.batch_size = batch_size
+        self.max_len = max_len
         self.num_workers = num_workers
         self.fb = fb
 

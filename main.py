@@ -14,14 +14,11 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class BabyLMModel(LightningModule):
-    def __init__(self, vocab_size=5000, initial_lr=1e-3, rl_loss_weight=0, max_len=128, model_name="babyllama"):
+    def __init__(self, initial_lr=1e-3, rl_loss_weight=0, model_name="babyllama"):
                  # warmup_steps=200):
         super().__init__()
 
         self.save_hyperparameters()
-
-        self.max_len = max_len
-        self.vocab_size = vocab_size
 
         self.model_name = model_name
         self.model_family = "causal" if model_name == "babyllama" else "masked"
@@ -29,13 +26,15 @@ class BabyLMModel(LightningModule):
     def configure_model(self):
         # config = RobertaConfig(
         #     vocab_size=vocab_size,
-        #     max_position_embeddings=self.max_len,
+        #     max_position_embeddings=max_len,
         #     num_attention_heads=12,
         #     num_hidden_layers=12,
         #     type_vocab_size=1,
         #     hidden_size=384,
         #     intermediate_size=1024,
         # )
+        vocab_size = self.trainer.datamodule.vocab_size
+        max_len = self.trainer.datamodule.max_len
         tokenizer = self.trainer.datamodule.tokenizer
         config = LlamaConfig(**{
             "attention_bias": False,
@@ -55,8 +54,8 @@ class BabyLMModel(LightningModule):
             "rope_scaling": None,
             "rope_theta": 10000.0,
             "tie_word_embeddings": False,
-            "vocab_size": self.vocab_size,
-            "max_position_embeddings": 2*self.max_len,
+            "vocab_size": vocab_size,
+            "max_position_embeddings": 2*max_len,
         })
 
         # self.model = RobertaForMaskedLM(config=config)
