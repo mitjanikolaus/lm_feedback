@@ -14,8 +14,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class BabyLMModel(LightningModule):
-    def __init__(self, vocab_size=5000, initial_lr=1e-3, rl_loss_weight=0, max_len=128, model_name="babyllama",
-                 warmup_steps=200):
+    def __init__(self, vocab_size=5000, initial_lr=1e-3, rl_loss_weight=0, max_len=128, model_name="babyllama"):
+                 # warmup_steps=200):
         super().__init__()
 
         self.save_hyperparameters()
@@ -177,13 +177,13 @@ class BabyLMModel(LightningModule):
 
     def configure_optimizers(self):
         optimizer = AdamW(params=self.model.parameters(), lr=self.hparams.initial_lr)
-        scheduler = get_cosine_schedule_with_warmup(
-            optimizer, num_warmup_steps=self.hparams.warmup_steps,
-            num_training_steps=self.trainer.max_steps,
-        )
+        # scheduler = get_cosine_schedule_with_warmup(
+        #     optimizer, num_warmup_steps=self.hparams.warmup_steps,
+        #     num_training_steps=self.trainer.max_steps,
+        # )
         return {
             "optimizer": optimizer,
-            "lr_scheduler": scheduler
+            # "lr_scheduler": scheduler
         }
 
 
