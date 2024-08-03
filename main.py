@@ -203,7 +203,7 @@ def cli_main():
             "callbacks": [checkpoint_callback, early_stop_callback, lr_monitor],
             "max_steps": 150000,
             "accumulate_grad_batches": 1,
-            "check_val_every_n_epoch": 1,
+            "check_val_every_n_epoch": 0.5,
             # "val_check_interval": 10000,
             "log_every_n_steps": 1000,
             "num_sanity_val_steps": 3,
