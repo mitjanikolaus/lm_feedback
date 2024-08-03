@@ -201,8 +201,8 @@ def cli_main():
         save_config_kwargs={"overwrite": True},
         trainer_defaults={
             "callbacks": [checkpoint_callback, early_stop_callback, lr_monitor],
-            "max_steps": 15000,
-            "accumulate_grad_batches": 10,
+            "max_steps": 150000,
+            "accumulate_grad_batches": 1,
             "check_val_every_n_epoch": 1,
             # "val_check_interval": 10000,
             "log_every_n_steps": 1000,
