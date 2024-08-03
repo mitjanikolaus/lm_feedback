@@ -209,6 +209,7 @@ def cli_main():
             "limit_val_batches": 100,
             "precision": "16-mixed",
             "reload_dataloaders_every_n_epochs": 1,
+            "gradient_clip_val": 1,
         },
     )
 
