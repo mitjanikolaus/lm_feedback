@@ -121,6 +121,8 @@ class BabyLMModel(LightningModule):
 
             self.log(f"train_loss_lm", loss_lm)
             self.log(f"train_loss_rl", loss_rl)
+            self.log(f"train_loss_lm_raw", out_lm["loss"])
+            self.log(f"train_loss_rl_raw", policy_loss)
 
             loss = loss_lm + loss_rl
         else:
