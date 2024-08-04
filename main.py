@@ -4,12 +4,12 @@ import warnings
 
 import torch
 from pytorch_lightning import LightningModule
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.cli import LightningCLI
 from pytorch_lightning.loggers import WandbLogger
 from transformers import LlamaForCausalLM, LlamaConfig
 from torch.optim import AdamW
-from data import BabyLMDataModule, SEQUENCE_START_TOKEN, MASK_TOKEN, ChildesDataModule
+from data import SEQUENCE_START_TOKEN, MASK_TOKEN, ChildesDataModule
 
 from lm_eval import evaluator
 
@@ -20,8 +20,6 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 class BabyLMModel(LightningModule):
     def __init__(self, initial_lr=1e-3, rl_loss_weight=0, model_name="babyllama"):
         super().__init__()
-
-        self.save_hyperparameters()
 
         self.model_name = model_name
         self.model_family = "causal" if model_name == "babyllama" else "masked"
@@ -36,8 +34,11 @@ class BabyLMModel(LightningModule):
         #     hidden_size=384,
         #     intermediate_size=1024,
         # )
-        vocab_size = self.trainer.datamodule.vocab_size
-        max_len = self.trainer.datamodule.max_len
+        self.vocab_size = self.trainer.datamodule.vocab_size
+        self.max_len = self.trainer.datamodule.max_len
+
+        self.save_hyperparameters()
+
         tokenizer = self.trainer.datamodule.tokenizer
         config = LlamaConfig(**{
             "attention_bias": False,
@@ -57,9 +58,10 @@ class BabyLMModel(LightningModule):
             "rope_scaling": None,
             "rope_theta": 10000.0,
             "tie_word_embeddings": False,
-            "vocab_size": vocab_size,
-            "max_position_embeddings": 2*max_len,
+            "vocab_size": self.vocab_size,
+            "max_position_embeddings": 2*self.max_len,
         })
+
 
         # self.model = RobertaForMaskedLM(config=config)
         # self.model = AutoModelForMaskedLM.from_pretrained("lgcharpe/ELC_BERT_small_baby_10M", trust_remote_code=True) #TODO , config=config
@@ -222,7 +224,6 @@ def cli_main():
                                         min_delta=0.01)
     LightningCLI(
         BabyLMModel,
-        # BabyLMDataModule,
         ChildesDataModule,
         seed_everything_default=1,
         save_config_kwargs={"overwrite": True},
