@@ -74,7 +74,7 @@ class BabyLMModel(LightningModule):
         path = "ckpt_huggingface_best" if best else "ckpt_huggingface_last"
 
         if isinstance(self.logger, WandbLogger):
-            huggingface_ckpt_dir = os.path.join("lightning_logs", f"version_{self.logger.version}", path)
+            huggingface_ckpt_dir = os.path.join("lightning_logs", self.logger.version, path)
         else:
             huggingface_ckpt_dir = os.path.join(self.logger.log_dir, path)
         return huggingface_ckpt_dir
