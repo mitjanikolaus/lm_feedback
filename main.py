@@ -1,5 +1,7 @@
 import math
 import os
+import warnings
+
 import torch
 from pytorch_lightning import LightningModule
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
@@ -8,6 +10,9 @@ from pytorch_lightning.loggers import WandbLogger
 from transformers import LlamaForCausalLM, LlamaConfig
 from torch.optim import AdamW
 from data import BabyLMDataModule, SEQUENCE_START_TOKEN, MASK_TOKEN, ChildesDataModule
+
+from lm_eval import evaluator
+
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -62,15 +67,19 @@ class BabyLMModel(LightningModule):
 
         # self.model.init_weights()
 
-    def save_huggingface_checkpoint(self, is_best):
-        """Self checkpoint that is compatible with huggingface"""
-        path = "ckpt_huggingface_best" if is_best else "ckpt_huggingface_last"
-        print(f"Saving huggingface-compatible checkpoint to {path}")
+    def get_hf_cktp_path(self, best=False):
+        path = "ckpt_huggingface_best" if best else "ckpt_huggingface_last"
 
         if isinstance(self.logger, WandbLogger):
             huggingface_ckpt_dir = os.path.join("lightning_logs", f"version_{self.logger.version}", path)
         else:
             huggingface_ckpt_dir = os.path.join(self.logger.log_dir, path)
+        return huggingface_ckpt_dir
+
+    def save_huggingface_checkpoint(self, is_best=False):
+        """Self checkpoint that is compatible with huggingface"""
+        huggingface_ckpt_dir = self.get_hf_cktp_path(best=is_best)
+        print(f"Saving huggingface-compatible checkpoint to {huggingface_ckpt_dir}")
 
         os.makedirs(huggingface_ckpt_dir, exist_ok=True)
 
@@ -158,8 +167,30 @@ class BabyLMModel(LightningModule):
 
             print(sequence.replace(SEQUENCE_START_TOKEN, ""))
 
+    def eval_babylm(self):
+        print("Evaluating babylm metrics")
+        self.save_huggingface_checkpoint()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            results = evaluator.simple_evaluate(
+                model="hf" if self.model_family == "causal" else "hf-mlm",
+                model_args=f"pretrained={self.get_hf_cktp_path()}",
+                tasks=["blimp_filtered", "blimp_supplement"],
+                batch_size=1024,
+                device=f"cuda:{self.trainer.device_ids[0]}",
+                cache_requests=True,
+            )
+
+        blimp_filtered_score = results["results"]["blimp_filtered"]["acc,none"]
+        blimp_supplement_score = results["results"]["blimp_supplement"]["acc,none"]
+
+        self.log(f"blimp_filtered", blimp_filtered_score, prog_bar=True, sync_dist=True)
+        self.log(f"blimp_supplement", blimp_supplement_score)
+
     def on_validation_epoch_end(self):
         self.generate_sample_sentences()
+        self.eval_babylm()
 
     def on_save_checkpoint(self, checkpoint):
         new_best_val_loss = checkpoint["callbacks"]["EarlyStopping{'monitor': 'val_loss', 'mode': 'min'}"][
