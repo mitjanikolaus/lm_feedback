@@ -64,7 +64,7 @@ DATA_NAMES = [DATA_FILE_CHILDES, DATA_FILE_BNC, DATA_FILE_GUTENBERG, DATA_FILE_O
 
 class ChildesDataModule(LightningDataModule):
     def __init__(self, fb=False, fb_data_path=None, vocab_size=10000,
-                 max_len=128, batch_size=150, num_workers=4, causal=True):
+                 max_len=128, batch_size=128, num_workers=4, causal=True):
         super().__init__()
         self.vocab_size = vocab_size
         self.batch_size = batch_size
@@ -130,7 +130,7 @@ class ChildesLMDataset(Dataset):
 
 class BabyLMDataModule(LightningDataModule):
     def __init__(self, training_track=TRAINING_TRACK_STRICT_SMALL, fb=False, fb_data_path=None, vocab_size=10000,
-                 max_len=128, batch_size=150, num_workers=4, subset=None, causal=True):
+                 max_len=128, batch_size=128, num_workers=4, subset=None, causal=True):
         super().__init__()
         if subset is None:
             data_file_names = DATA_NAMES
