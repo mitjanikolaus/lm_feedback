@@ -18,7 +18,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class BabyLMModel(LightningModule):
-    def __init__(self, initial_lr=1e-3, rl_loss_weight=0, model_name="babyllama"):
+    def __init__(self, initial_lr=1e-4, rl_loss_weight=0, model_name="babyllama"):
         super().__init__()
 
         self.save_hyperparameters()
