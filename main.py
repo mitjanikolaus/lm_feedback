@@ -21,6 +21,8 @@ class BabyLMModel(LightningModule):
     def __init__(self, initial_lr=1e-3, rl_loss_weight=0, model_name="babyllama"):
         super().__init__()
 
+        self.save_hyperparameters()
+
         self.initial_lr = initial_lr
         self.model_name = model_name
         self.model_family = "causal" if model_name == "babyllama" else "masked"
@@ -37,8 +39,6 @@ class BabyLMModel(LightningModule):
         # )
         self.vocab_size = self.trainer.datamodule.vocab_size
         self.max_len = self.trainer.datamodule.max_len
-
-        self.save_hyperparameters()
 
         tokenizer = self.trainer.datamodule.tokenizer
         config = LlamaConfig(**{
@@ -207,7 +207,7 @@ class BabyLMModel(LightningModule):
             self.save_huggingface_checkpoint(is_best=False)
 
     def configure_optimizers(self):
-        optimizer = AdamW(params=self.model.parameters(), lr=self.initial_lr)
+        optimizer = AdamW(params=self.model.parameters(), lr=self.hparams.initial_lr)
         # scheduler = get_cosine_schedule_with_warmup(
         #     optimizer, num_warmup_steps=self.hparams.warmup_steps,
         #     num_training_steps=self.trainer.max_steps,
