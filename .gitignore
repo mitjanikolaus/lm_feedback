@@ -4,3 +4,4 @@ __pycache__
 results
 tokenizers
 lightning_logs
+evaluation_data
