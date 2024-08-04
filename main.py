@@ -5,17 +5,15 @@ from pytorch_lightning import LightningModule
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
 from pytorch_lightning.cli import LightningCLI
 from pytorch_lightning.loggers import WandbLogger
-from transformers import RobertaConfig, RobertaForMaskedLM, LlamaForCausalLM, LlamaConfig, \
-    get_cosine_schedule_with_warmup
+from transformers import LlamaForCausalLM, LlamaConfig
 from torch.optim import AdamW
-from data import BabyLMDataModule, SEQUENCE_START_TOKEN, MASK_TOKEN
+from data import BabyLMDataModule, SEQUENCE_START_TOKEN, MASK_TOKEN, ChildesDataModule
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class BabyLMModel(LightningModule):
     def __init__(self, initial_lr=1e-3, rl_loss_weight=0, model_name="babyllama"):
-                 # warmup_steps=200):
         super().__init__()
 
         self.save_hyperparameters()
@@ -193,7 +191,8 @@ def cli_main():
                                         min_delta=0.01)
     LightningCLI(
         BabyLMModel,
-        BabyLMDataModule,
+        # BabyLMDataModule,
+        ChildesDataModule,
         seed_everything_default=1,
         save_config_kwargs={"overwrite": True},
         trainer_defaults={
