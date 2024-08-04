@@ -129,7 +129,7 @@ class ChildesLMDataset(Dataset):
 
 
 class BabyLMDataModule(LightningDataModule):
-    def __init__(self, training_track=TRAINING_TRACK_STRICT_SMALL, fb=False, fb_data_path=None, vocab_size=5000,
+    def __init__(self, training_track=TRAINING_TRACK_STRICT_SMALL, fb=False, fb_data_path=None, vocab_size=10000,
                  max_len=128, batch_size=150, num_workers=4, subset=None, causal=True):
         super().__init__()
         if subset is None:
