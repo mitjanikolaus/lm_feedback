@@ -123,6 +123,7 @@ class BabyLMModel(LightningModule):
             self.log(f"train_loss_rl", loss_rl)
             self.log(f"train_loss_lm_raw", out_lm["loss"])
             self.log(f"train_loss_rl_raw", policy_loss)
+            self.log(f"reward", batch_fb["reward"].mean())
 
             loss = loss_lm + loss_rl
         else:
