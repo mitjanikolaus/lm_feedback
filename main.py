@@ -228,7 +228,7 @@ def cli_main():
             "callbacks": [checkpoint_callback, early_stop_callback],
             "max_steps": 150000,
             "accumulate_grad_batches": 1,
-            "val_check_interval": 0.5,
+            "val_check_interval": 0.2,
             "log_every_n_steps": 1000,
             "num_sanity_val_steps": 3,
             "limit_val_batches": 100,
