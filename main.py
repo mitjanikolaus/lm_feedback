@@ -99,14 +99,11 @@ class BabyLMModel(LightningModule):
             batch, batch_fb = batch["lm"], batch["fb"]
             if self.model_family == "causal":
                 out_lm = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels)
-            else:
-                out_lm = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
-                                    token_type_ids=batch.token_type_ids)
-
-            if self.model_family == "causal":
                 out_fb = self.model(input_ids=batch_fb.input_ids, attention_mask=batch_fb.attention_mask,
                                     labels=batch_fb.labels)
             else:
+                out_lm = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
+                                    token_type_ids=batch.token_type_ids)
                 out_fb = self.model(input_ids=batch_fb.input_ids, attention_mask=batch_fb.attention_mask,
                                     labels=batch_fb.labels,
                                     token_type_ids=batch_fb.token_type_ids)
