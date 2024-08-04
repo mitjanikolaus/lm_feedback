@@ -188,7 +188,8 @@ class BabyLMModel(LightningModule):
 
     def on_validation_epoch_end(self):
         self.generate_sample_sentences()
-        self.eval_babylm()
+        if not self.trainer.state.stage == 'sanity_check':
+            self.eval_babylm()
 
     def on_save_checkpoint(self, checkpoint):
         new_best_val_loss = checkpoint["callbacks"]["EarlyStopping{'monitor': 'val_loss', 'mode': 'min'}"][
