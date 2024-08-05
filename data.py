@@ -121,7 +121,7 @@ class ChildesDataModule(LightningDataModule):
                                    num_workers=self.num_workers, collate_fn=self.collate_fn)
         if self.fb:
             fb_dataloader = DataLoader(self.dataset_fb_dev, batch_size=self.batch_size, num_workers=self.num_workers,
-                                       shuffle=True, collate_fn=self.collate_fn_fb)
+                                       collate_fn=self.collate_fn_fb)
             return {"lm": lm_dataloader, "fb": fb_dataloader}
         else:
             return lm_dataloader
