@@ -177,7 +177,7 @@ class BabyLMModel(LightningModule):
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            results = evaluator.simple_evaluate(
+            out = evaluator.simple_evaluate(
                 model="hf" if self.model_family == "causal" else "hf-mlm",
                 model_args=f"pretrained={self.get_hf_cktp_path()}",
                 tasks=["blimp_filtered", "blimp_supplement"],
@@ -186,11 +186,11 @@ class BabyLMModel(LightningModule):
                 cache_requests=True,
             )
 
-        blimp_filtered_score = results["results"]["blimp_filtered"]["acc,none"]
-        blimp_supplement_score = results["results"]["blimp_supplement"]["acc,none"]
-
-        self.log(f"blimp_filtered", blimp_filtered_score, prog_bar=True, sync_dist=True)
-        self.log(f"blimp_supplement", blimp_supplement_score)
+        for key, val in out["results"].items():
+            if key == "blimp_filtered":
+                self.log(key, val["acc,none"], prog_bar=True, sync_dist=True)
+            else:
+                self.log(key, val["acc,none"])
 
     def on_validation_epoch_end(self):
         self.generate_sample_sentences()
