@@ -145,7 +145,7 @@ class BabyLMModel(LightningModule):
     def validation_step(self, batch, batch_idx, dataloader_idx):
         if dataloader_idx == 0:
             loss = self.forward_step_lm(batch)
-            self.log(f"val_loss", loss, prog_bar=True, sync_dist=True)
+            self.log(f"val_loss", loss, prog_bar=True, sync_dist=True, add_dataloader_idx=False)
 
         elif dataloader_idx == 1:
             policy_loss = self.forward_step_fb(batch)
