@@ -149,7 +149,7 @@ class BabyLMModel(LightningModule):
 
         elif dataloader_idx == 1:
             policy_loss = self.forward_step_fb(batch)
-            self.log(f"val_loss_rl_raw", policy_loss, prog_bar=True)
+            self.log(f"val_loss_rl_raw", policy_loss, prog_bar=True, add_dataloader_idx=False)
 
     def generate_sample_sentences(self):
         tokenizer = self.trainer.datamodule.tokenizer
