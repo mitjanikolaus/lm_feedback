@@ -78,7 +78,8 @@ class ChildesDataModule(LightningDataModule):
         data_df = pd.read_csv(CHILDES_LM_DATA_FILE)
         data = data_df.transcript_clean.to_list()
 
-        data_train, data_dev = train_test_split(data, test_size=DEV_SET_SIZE, shuffle=True, random_state=SPLIT_RANDOM_STATE)
+        data_train, data_dev = train_test_split(data, test_size=DEV_SET_SIZE, shuffle=True,
+                                                random_state=SPLIT_RANDOM_STATE)
 
         if not os.path.isfile(os.path.join(tokenizer_dir, "vocab.json")):
             # Train tokenizer if it doesn't exist yet
@@ -90,7 +91,15 @@ class ChildesDataModule(LightningDataModule):
         self.dataset_train = ChildesLMDataset(data_train, tokenizer=self.tokenizer, max_len=max_len)
 
         if self.fb:
-            self.dataset_fb_train = FeedbackDataset(fb_data_path, self.tokenizer, max_len)
+            print("Loading FB data.. ", end="")
+            data_fb = pd.read_csv(fb_data_path)
+            data_fb["reward"] = data_fb.apply(compute_reward_value, axis=1)
+            data_fb = data_fb[["utt_transcript_clean", "reward"]]
+            data_fb_train, data_fb_dev = train_test_split(data_fb, test_size=DEV_SET_SIZE, shuffle=True,
+                                                          random_state=SPLIT_RANDOM_STATE)
+            print("Done.")
+            self.dataset_fb_train = FeedbackDataset(data_fb_train, self.tokenizer, max_len)
+            self.dataset_fb_dev = FeedbackDataset(data_fb_dev, self.tokenizer, max_len)
 
         self.collate_fn = DataCollatorForLanguageModeling(
             tokenizer=self.tokenizer, mlm=not causal, mlm_probability=0.15 if not causal else None
@@ -108,9 +117,14 @@ class ChildesDataModule(LightningDataModule):
             return lm_dataloader
 
     def val_dataloader(self):
-        validation_dataloader = DataLoader(self.dataset_dev, batch_size=self.batch_size,
-                                           num_workers=self.num_workers, collate_fn=self.collate_fn)
-        return validation_dataloader
+        lm_dataloader = DataLoader(self.dataset_dev, batch_size=self.batch_size,
+                                   num_workers=self.num_workers, collate_fn=self.collate_fn)
+        if self.fb:
+            fb_dataloader = DataLoader(self.dataset_fb_dev, batch_size=self.batch_size, num_workers=self.num_workers,
+                                       shuffle=True, collate_fn=self.collate_fn_fb)
+            return {"lm": lm_dataloader, "fb": fb_dataloader}
+        else:
+            return lm_dataloader
 
 
 class ChildesLMDataset(Dataset):
@@ -129,7 +143,8 @@ class ChildesLMDataset(Dataset):
 
 
 class BabyLMDataModule(LightningDataModule):
-    def __init__(self, training_track=TRAINING_TRACK_STRICT_SMALL, fb=False, fb_data_path=CHILDES_RL_DATA_FILE, vocab_size=10000,
+    def __init__(self, training_track=TRAINING_TRACK_STRICT_SMALL, fb=False, fb_data_path=CHILDES_RL_DATA_FILE,
+                 vocab_size=10000,
                  max_len=128, batch_size=128, num_workers=4, subset=None, causal=True):
         super().__init__()
         if subset is None:
@@ -171,11 +186,13 @@ class BabyLMDataModule(LightningDataModule):
 
         self.tokenizer = RobertaTokenizerFast.from_pretrained(tokenizer_dir, max_len=max_len)
 
-        self.dataset_dev = BabyLMDataset(BABYLM_DATA_PATH_DEV_CLEAN, tokenizer=self.tokenizer, max_len=max_len, data_file_names=data_file_names,
+        self.dataset_dev = BabyLMDataset(BABYLM_DATA_PATH_DEV_CLEAN, tokenizer=self.tokenizer, max_len=max_len,
+                                         data_file_names=data_file_names,
                                          split="dev")
 
         data_path_train = os.path.join(BABYLM_DATA_DIR_CLEAN, training_track)
-        self.dataset_train = BabyLMDataset(data_path_train, tokenizer=self.tokenizer, max_len=max_len, data_file_names=data_file_names,
+        self.dataset_train = BabyLMDataset(data_path_train, tokenizer=self.tokenizer, max_len=max_len,
+                                           data_file_names=data_file_names,
                                            split="train")
 
         if self.fb:
@@ -269,7 +286,7 @@ class BabyLMDataset(Dataset):
         return out
 
 
-def get_reward_value(utt):
+def compute_reward_value(utt):
     if utt.response_is_clarification_request:
         return 0
     elif utt.response_is_acknowledgement:
@@ -279,27 +296,20 @@ def get_reward_value(utt):
 
 
 class FeedbackDataset(Dataset):
-    def __init__(self, data_path, tokenizer, max_len):
+    def __init__(self, data, tokenizer, max_len):
         self.tokenizer = tokenizer
         self.max_len = max_len
-
-        print("Loading FB data.. ", end="")
-        data = pd.read_csv(data_path)
-
-        utts_encoded = data.utt_transcript_clean.to_list()
-        rewards = data.apply(get_reward_value, axis=1)
-
-        self.examples = list(zip(utts_encoded, rewards))
-        print("Done.")
+        self.data = data
 
     def __len__(self):
-        return len(self.examples)
+        return len(self.data)
 
     def __getitem__(self, i):
-        encoded_sample = self.tokenizer(self.examples[i][0], add_special_tokens=True, return_special_tokens_mask=True,
+        item = self.data.iloc[i]
+        encoded_sample = self.tokenizer(item["utt_transcript_clean"], add_special_tokens=True,
+                                        return_special_tokens_mask=True,
                                         return_token_type_ids=True, truncation=True, max_length=self.max_len - 2)
-        reward = self.examples[i][1]
-        encoded_sample.data["reward"] = reward
+        encoded_sample.data["reward"] = item["reward"]
         encoded_sample.data["length"] = len(encoded_sample.input_ids)
 
         return encoded_sample

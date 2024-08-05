@@ -94,59 +94,62 @@ class BabyLMModel(LightningModule):
         self.best_val_loss = math.inf
         self.save_huggingface_checkpoint(is_best=True)
 
-    def training_step(self, batch, batch_idx):
-        if self.trainer.datamodule.fb:
-            batch, batch_fb = batch["lm"], batch["fb"]
-            if self.model_family == "causal":
-                out_lm = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels)
-                out_fb = self.model(input_ids=batch_fb.input_ids, attention_mask=batch_fb.attention_mask)
-            else:
-                out_lm = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
-                                    token_type_ids=batch.token_type_ids)
-                out_fb = self.model(input_ids=batch_fb.input_ids, attention_mask=batch_fb.attention_mask,
-                                    token_type_ids=batch_fb.token_type_ids)
-
-            logits = out_fb["logits"]
-            target_logits = [logit[range(logit.shape[0]), input] for logit, input in zip(logits, batch_fb.input_ids)]
-            target_logits = torch.stack(target_logits)
-
-            effective_log_prob = target_logits.sum(dim=1) / batch_fb["length"]
-
-            policy_loss = -(batch_fb["reward"] * effective_log_prob).mean()
-
-            # entropy_loss = effective_entropy.mean() * args.entropy_coeff
-
-            loss_lm = (1 - self.hparams.rl_loss_weight) * out_lm["loss"]
-            loss_rl = self.hparams.rl_loss_weight * policy_loss
-
-            self.log(f"train_loss_lm", loss_lm)
-            self.log(f"train_loss_rl", loss_rl)
-            self.log(f"train_loss_lm_raw", out_lm["loss"], prog_bar=True)
-            self.log(f"train_loss_rl_raw", policy_loss, prog_bar=True)
-            self.log(f"reward", batch_fb["reward"].mean())
-
-            loss = loss_lm + loss_rl
-        else:
-            if self.model_family == "causal":
-                out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels)
-            else:
-                out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
-                                 token_type_ids=batch.token_type_ids)
-
-            loss = out["loss"]
-
-        self.log(f"train_loss", loss, prog_bar=True)
-
-        return loss
-
-    def validation_step(self, batch, batch_idx):
+    def forward_step_lm(self, batch):
         if self.model_family == "causal":
             out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels)
         else:
             out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
                              token_type_ids=batch.token_type_ids)
-        self.log(f"val_loss", out["loss"], prog_bar=True, sync_dist=True)
-        return out
+
+        return out["loss"]
+
+    def forward_step_fb(self, batch):
+        if self.model_family == "causal":
+            out_fb = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask)
+        else:
+            out_fb = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask,
+                                token_type_ids=batch.token_type_ids)
+
+        logits = out_fb["logits"]
+        target_logits = [logit[range(logit.shape[0]), input] for logit, input in zip(logits, batch.input_ids)]
+        target_logits = torch.stack(target_logits)
+        effective_log_prob = target_logits.sum(dim=1) / batch["length"]
+
+        policy_loss = -(batch["reward"] * effective_log_prob).mean()
+        return policy_loss
+
+    def training_step(self, batch, batch_idx):
+        if self.trainer.datamodule.fb:
+            batch, batch_fb = batch["lm"], batch["fb"]
+            lm_loss = self.forward_step_lm(batch)
+            policy_loss = self.forward_step_fb(batch_fb)
+
+            # entropy_loss = effective_entropy.mean() * args.entropy_coeff
+
+            loss_lm = (1 - self.hparams.rl_loss_weight) * lm_loss
+            loss_rl = self.hparams.rl_loss_weight * policy_loss
+
+            self.log(f"train_loss_lm", loss_lm)
+            self.log(f"train_loss_rl", loss_rl)
+            self.log(f"train_loss_lm_raw", lm_loss, prog_bar=True)
+            self.log(f"train_loss_rl_raw", policy_loss, prog_bar=True)
+
+            loss = loss_lm + loss_rl
+        else:
+            loss = self.forward_step_lm(batch)
+
+        self.log(f"train_loss", loss, prog_bar=True)
+
+        return loss
+
+    def validation_step(self, batch, batch_idx, dataloader_idx):
+        if dataloader_idx == 0:
+            loss = self.forward_step_lm(batch)
+            self.log(f"val_loss", loss, prog_bar=True, sync_dist=True)
+
+        elif dataloader_idx == 1:
+            policy_loss = self.forward_step_fb(batch)
+            self.log(f"val_loss_rl_raw", policy_loss, prog_bar=True)
 
     def generate_sample_sentences(self):
         tokenizer = self.trainer.datamodule.tokenizer
