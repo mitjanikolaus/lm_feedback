@@ -180,7 +180,7 @@ class BabyLMModel(LightningModule):
             out = evaluator.simple_evaluate(
                 model="hf" if self.model_family == "causal" else "hf-mlm",
                 model_args=f"pretrained={self.get_hf_cktp_path()}",
-                tasks=["blimp_filtered", "blimp_supplement"],
+                tasks=["blimp_filtered"],
                 batch_size=1024,
                 device=f"cuda:{self.trainer.device_ids[0]}",
                 cache_requests=True,
