@@ -64,7 +64,7 @@ DATA_NAMES = [DATA_FILE_CHILDES, DATA_FILE_BNC, DATA_FILE_GUTENBERG, DATA_FILE_O
 
 class ChildesDataModule(LightningDataModule):
     def __init__(self, lm_data_path=CHILDES_LM_DATA_FILE, fb=False, fb_data_path=CHILDES_RL_DATA_FILE, vocab_size=10000,
-                 max_len=128, batch_size=128, num_workers=4, causal=True):
+                 max_len=128, batch_size=128, num_workers=4, causal=True, capitalize_bos=True):
         super().__init__()
         self.vocab_size = vocab_size
         self.batch_size = batch_size
@@ -77,6 +77,8 @@ class ChildesDataModule(LightningDataModule):
 
         data_df = pd.read_csv(lm_data_path)
         data = data_df.transcript_clean.to_list()
+        if capitalize_bos:
+            data = [sentence[0].capitalize() + sentence[1:] for sentence in data]
 
         data_train, data_dev = train_test_split(data, test_size=DEV_SET_SIZE, shuffle=True,
                                                 random_state=SPLIT_RANDOM_STATE)
