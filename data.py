@@ -76,9 +76,9 @@ class ChildesDataModule(LightningDataModule):
         os.makedirs(tokenizer_dir, exist_ok=True)
 
         data_df = pd.read_csv(lm_data_path)
-        data = data_df.transcript_clean.to_list()
         if capitalize_bos:
-            data = [sentence[0].capitalize() + sentence[1:] for sentence in data]
+            data_df["transcript_clean"] = data_df["transcript_clean"].apply(lambda x: x[0].capitalize() + x[1:])
+        data = data_df.transcript_clean.to_list()
 
         data_train, data_dev = train_test_split(data, test_size=DEV_SET_SIZE, shuffle=True,
                                                 random_state=SPLIT_RANDOM_STATE)
@@ -97,6 +97,9 @@ class ChildesDataModule(LightningDataModule):
             data_fb = pd.read_csv(fb_data_path)
             data_fb["reward"] = data_fb.apply(compute_reward_value, axis=1)
             data_fb = data_fb[["utt_transcript_clean", "reward"]]
+            if capitalize_bos:
+                data_fb["utt_transcript_clean"] = data_fb["utt_transcript_clean"].apply(lambda x: x[0].capitalize() + x[1:])
+
             data_fb_train, data_fb_dev = train_test_split(data_fb, test_size=DEV_SET_SIZE, shuffle=True,
                                                           random_state=SPLIT_RANDOM_STATE)
             print("Done.")
