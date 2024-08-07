@@ -5,6 +5,7 @@ import re
 from pytorch_lightning import LightningDataModule
 from sklearn.model_selection import train_test_split
 from tokenizers.models import BPE
+from tokenizers.normalizers import NFKC
 from tokenizers.trainers import BpeTrainer
 
 from tokenizers import Tokenizer, pre_tokenizers, decoders, processors
@@ -38,6 +39,7 @@ def train_tokenizer(save_path, vocab_size, data_iterator=None, data_file_names=N
     tokenizer.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=True)
     tokenizer.decoder = decoders.ByteLevel()
     tokenizer.post_processor = processors.ByteLevel(trim_offsets=True)
+    tokenizer.normalizer = NFKC()
 
     trainer = BpeTrainer(
         vocab_size=vocab_size,
