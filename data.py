@@ -4,7 +4,10 @@ import re
 
 from pytorch_lightning import LightningDataModule
 from sklearn.model_selection import train_test_split
-from tokenizers.implementations import ByteLevelBPETokenizer
+from tokenizers.models import BPE
+from tokenizers.trainers import BpeTrainer
+
+from tokenizers import Tokenizer, pre_tokenizers, decoders, processors
 from torch.utils.data import Dataset, DataLoader
 
 from nltk.tokenize import sent_tokenize
@@ -28,21 +31,28 @@ MASK_TOKEN = "<mask>"
 SPECIAL_TOKENS = [SEQUENCE_START_TOKEN, PAD_TOKEN, SEQUENCE_END_TOKEN, UNK_TOKEN]
 
 
-def train_tokenizer(save_dir, vocab_size, data_iterator=None, data_file_names=None, training_track=None):
+def train_tokenizer(save_path, vocab_size, data_iterator=None, data_file_names=None, training_track=None):
     print(f"Training tokenizer for vocab size {vocab_size} .. ")
 
-    # Initialize a tokenizer
-    tokenizer = ByteLevelBPETokenizer()
+    tokenizer = Tokenizer(BPE())
+    tokenizer.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=True)
+    tokenizer.decoder = decoders.ByteLevel()
+    tokenizer.post_processor = processors.ByteLevel(trim_offsets=True)
 
+    trainer = BpeTrainer(
+        vocab_size=vocab_size,
+        min_frequency=2,
+        initial_alphabet=pre_tokenizers.ByteLevel.alphabet(),
+        special_tokens=SPECIAL_TOKENS
+    )
     if data_iterator is not None:
-        tokenizer.train_from_iterator(data_iterator, vocab_size=vocab_size, show_progress=True,
-                                      special_tokens=SPECIAL_TOKENS)
+        tokenizer.train_from_iterator(data_iterator, trainer=trainer)
     else:
         paths = [os.path.join(BABYLM_DATA_DIR_CLEAN, training_track, f"{name}.train") for name in data_file_names]
-        tokenizer.train(files=paths, vocab_size=vocab_size, show_progress=True, special_tokens=SPECIAL_TOKENS)
+        tokenizer.train(files=paths, trainer=trainer)
 
-    tokenizer.save_model(save_dir)
-    print(f"Saved trained tokenizer to {save_dir}")
+    tokenizer.save(save_path, pretty=True)
+    print(f"Saved trained tokenizer to {save_path}")
 
 
 DATA_FILE_CHILDES = "childes"
@@ -77,14 +87,12 @@ class ChildesDataModule(LightningDataModule):
         data_train, data_dev = train_test_split(data, test_size=DEV_SET_SIZE, shuffle=True,
                                                 random_state=SPLIT_RANDOM_STATE)
 
-        vocab_dir = os.path.join(tokenizer_dir, "vocab.json")
-        merges_path = os.path.join(tokenizer_dir, "merges.txt")
-        if not os.path.isfile(vocab_dir) or not os.path.isfile(merges_path):
-            # Train tokenizer if it doesn't exist yet
-            train_tokenizer(tokenizer_dir, vocab_size, data_train)
+        tokenizer_path = os.path.join(tokenizer_dir, "byte-level-bpe.json")
+        if not os.path.isfile(tokenizer_path):
+            train_tokenizer(tokenizer_path, vocab_size, data_train)
 
-        tokenizer = ByteLevelBPETokenizer.from_file(vocab_filename=vocab_dir, merges_filename=merges_path)
-        self.tokenizer = PreTrainedTokenizerFast(tokenizer_object=tokenizer._tokenizer, pad_token=PAD_TOKEN,
+        tokenizer = Tokenizer.from_file(tokenizer_path)
+        self.tokenizer = PreTrainedTokenizerFast(tokenizer_object=tokenizer, pad_token=PAD_TOKEN,
                                                  bos_token=SEQUENCE_START_TOKEN, eos_token=SEQUENCE_END_TOKEN,
                                                  return_token_type_ids=False)
 
