@@ -4,18 +4,15 @@ import re
 
 from pytorch_lightning import LightningDataModule
 from sklearn.model_selection import train_test_split
-from tokenizers.models import BPE
-from tokenizers.normalizers import NFKC
-from tokenizers.trainers import BpeTrainer
+from tokenizers.implementations import ByteLevelBPETokenizer
 
-from tokenizers import Tokenizer, pre_tokenizers, decoders, processors
 from torch.utils.data import Dataset, DataLoader
 
 from nltk.tokenize import sent_tokenize
 
 import pandas as pd
 from transformers import DataCollatorForLanguageModeling, LlamaTokenizerFast, DataCollatorWithPadding, \
-    PreTrainedTokenizerFast
+    GPT2TokenizerFast
 
 from utils import BABYLM_DATA_DIR, SPEAKER_CODES_CAREGIVER, BABYLM_DATA_DIR_CLEAN, BABYLM_DATA_PATH_DEV_CLEAN, \
     DEV_SET, TRAINING_TRACK_STRICT_SMALL, TRAIN_SET, CHILDES_LM_DATA_FILE, CHILDES_RL_DATA_FILE
@@ -23,37 +20,27 @@ from utils import BABYLM_DATA_DIR, SPEAKER_CODES_CAREGIVER, BABYLM_DATA_DIR_CLEA
 DEV_SET_SIZE = 0.1
 SPLIT_RANDOM_STATE = 1
 
-SEQUENCE_START_TOKEN = "<s>"
-SEQUENCE_END_TOKEN = "</s>"
-PAD_TOKEN = "<pad>"
-UNK_TOKEN = "<unk>"
+SEQUENCE_START_TOKEN = "<|endoftext|>"
+SEQUENCE_END_TOKEN = "<|endoftext|>"
+PAD_TOKEN = "<|endoftext|>"
+UNK_TOKEN = "<|endoftext|>"
 MASK_TOKEN = "<mask>"
 
-SPECIAL_TOKENS = [SEQUENCE_START_TOKEN, PAD_TOKEN, SEQUENCE_END_TOKEN, UNK_TOKEN]
+SPECIAL_TOKENS = [PAD_TOKEN, SEQUENCE_END_TOKEN, SEQUENCE_START_TOKEN, UNK_TOKEN]
 
 
 def train_tokenizer(save_path, vocab_size, data_iterator=None, data_file_names=None, training_track=None):
     print(f"Training tokenizer for vocab size {vocab_size} .. ")
 
-    tokenizer = Tokenizer(BPE())
-    tokenizer.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=True)
-    tokenizer.decoder = decoders.ByteLevel()
-    tokenizer.post_processor = processors.ByteLevel(trim_offsets=True)
-    tokenizer.normalizer = NFKC()
+    tokenizer = ByteLevelBPETokenizer()
 
-    trainer = BpeTrainer(
-        vocab_size=vocab_size,
-        min_frequency=2,
-        initial_alphabet=pre_tokenizers.ByteLevel.alphabet(),
-        special_tokens=SPECIAL_TOKENS
-    )
     if data_iterator is not None:
-        tokenizer.train_from_iterator(data_iterator, trainer=trainer)
+        tokenizer.train_from_iterator(data_iterator, vocab_size=vocab_size, special_tokens=SPECIAL_TOKENS)
     else:
         paths = [os.path.join(BABYLM_DATA_DIR_CLEAN, training_track, f"{name}.train") for name in data_file_names]
-        tokenizer.train(files=paths, trainer=trainer)
+        tokenizer.train(files=paths, vocab_size=vocab_size, special_tokens=SPECIAL_TOKENS)
 
-    tokenizer.save(save_path, pretty=True)
+    tokenizer.save_model(save_path)
     print(f"Saved trained tokenizer to {save_path}")
 
 
@@ -89,14 +76,12 @@ class ChildesDataModule(LightningDataModule):
         data_train, data_dev = train_test_split(data, test_size=DEV_SET_SIZE, shuffle=True,
                                                 random_state=SPLIT_RANDOM_STATE)
 
-        tokenizer_path = os.path.join(tokenizer_dir, "byte-level-bpe.json")
-        if not os.path.isfile(tokenizer_path):
-            train_tokenizer(tokenizer_path, vocab_size, data_train)
+        if not os.path.isfile(os.path.join(tokenizer_dir, "vocab.json")):
+            train_tokenizer(tokenizer_dir, vocab_size, data_train)
 
-        tokenizer = Tokenizer.from_file(tokenizer_path)
-        self.tokenizer = PreTrainedTokenizerFast(tokenizer_object=tokenizer, pad_token=PAD_TOKEN,
-                                                 bos_token=SEQUENCE_START_TOKEN, eos_token=SEQUENCE_END_TOKEN,
-                                                 return_token_type_ids=False)
+        self.tokenizer = GPT2TokenizerFast.from_pretrained(
+            tokenizer_dir, return_token_type_ids=False, add_prefix_space=True, pad_token=PAD_TOKEN
+        )
 
         self.dataset_dev = ChildesLMDataset(data_dev, tokenizer=self.tokenizer, max_len=max_len)
         self.dataset_train = ChildesLMDataset(data_train, tokenizer=self.tokenizer, max_len=max_len)
@@ -152,8 +137,7 @@ class ChildesLMDataset(Dataset):
         return len(self.examples)
 
     def __getitem__(self, i):
-        out = self.tokenizer(self.examples[i], add_special_tokens=True, return_special_tokens_mask=True,
-                             return_token_type_ids=True, truncation=True, max_length=self.max_len - 2)
+        out = self.tokenizer(self.examples[i], add_special_tokens=True, truncation=True, max_length=self.max_len - 2)
         return out
 
 
@@ -322,8 +306,7 @@ class FeedbackDataset(Dataset):
     def __getitem__(self, i):
         item = self.data.iloc[i]
         encoded_sample = self.tokenizer(item["utt_transcript_clean"], add_special_tokens=True,
-                                        return_special_tokens_mask=True,
-                                        return_token_type_ids=True, truncation=True, max_length=self.max_len - 2)
+                                        truncation=True, max_length=self.max_len - 2)
         encoded_sample.data["reward"] = item["reward"]
         encoded_sample.data["length"] = len(encoded_sample.input_ids)
 

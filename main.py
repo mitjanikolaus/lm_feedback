@@ -9,7 +9,7 @@ from pytorch_lightning.cli import LightningCLI
 from pytorch_lightning.loggers import WandbLogger
 from transformers import LlamaForCausalLM, LlamaConfig
 from torch.optim import AdamW
-from data import SEQUENCE_START_TOKEN, MASK_TOKEN, ChildesDataModule
+from data import ChildesDataModule, SEQUENCE_START_TOKEN, MASK_TOKEN
 
 from lm_eval import evaluator
 
@@ -140,10 +140,12 @@ class BabyLMModel(LightningModule):
     def generate_sample_sentences(self):
         tokenizer = self.trainer.datamodule.tokenizer
 
-        generation_prefixes = ["", "it", "it's", "she", "hello", "do"]
+        generation_prefixes = ["it", "it's", "she", "hello", "do"]
         print("\nGenerated samples:")
         for prefix in generation_prefixes:
-            sequence = SEQUENCE_START_TOKEN + prefix
+            sequence = prefix
+            if tokenizer.add_bos_token:
+                sequence = SEQUENCE_START_TOKEN + prefix
             for step in range(10):
                 if self.model_family == "causal":
                     inputs = tokenizer(sequence, return_tensors="pt", add_special_tokens=False,
