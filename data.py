@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 import re
 
-import torch
 from pytorch_lightning import LightningDataModule
 from sklearn.model_selection import train_test_split
 from tokenizers.implementations import ByteLevelBPETokenizer
@@ -11,16 +10,22 @@ from torch.utils.data import Dataset, DataLoader
 from nltk.tokenize import sent_tokenize
 
 import pandas as pd
-from transformers import DataCollatorForLanguageModeling, RobertaTokenizerFast, DataCollatorWithPadding
+from transformers import DataCollatorForLanguageModeling, LlamaTokenizerFast, DataCollatorWithPadding, \
+    PreTrainedTokenizerFast
 
 from utils import BABYLM_DATA_DIR, SPEAKER_CODES_CAREGIVER, BABYLM_DATA_DIR_CLEAN, BABYLM_DATA_PATH_DEV_CLEAN, \
     DEV_SET, TRAINING_TRACK_STRICT_SMALL, TRAIN_SET, CHILDES_LM_DATA_FILE, CHILDES_RL_DATA_FILE
 
-SEQUENCE_START_TOKEN = "<s>"
-MASK_TOKEN = "<mask>"
-
 DEV_SET_SIZE = 0.1
 SPLIT_RANDOM_STATE = 1
+
+SEQUENCE_START_TOKEN = "<s>"
+SEQUENCE_END_TOKEN = "</s>"
+PAD_TOKEN = "<pad>"
+UNK_TOKEN = "<unk>"
+MASK_TOKEN = "<mask>"
+
+SPECIAL_TOKENS = [SEQUENCE_START_TOKEN, PAD_TOKEN, SEQUENCE_END_TOKEN, UNK_TOKEN]
 
 
 def train_tokenizer(save_dir, vocab_size, data_iterator=None, data_file_names=None, training_track=None):
@@ -30,22 +35,11 @@ def train_tokenizer(save_dir, vocab_size, data_iterator=None, data_file_names=No
     tokenizer = ByteLevelBPETokenizer()
 
     if data_iterator is not None:
-        tokenizer.train_from_iterator(data_iterator, vocab_size=vocab_size, min_frequency=2, special_tokens=[
-            SEQUENCE_START_TOKEN,
-            "<pad>",
-            "</s>",
-            "<unk>",
-            MASK_TOKEN,
-        ])
+        tokenizer.train_from_iterator(data_iterator, vocab_size=vocab_size, show_progress=True,
+                                      special_tokens=SPECIAL_TOKENS)
     else:
         paths = [os.path.join(BABYLM_DATA_DIR_CLEAN, training_track, f"{name}.train") for name in data_file_names]
-        tokenizer.train(files=paths, vocab_size=vocab_size, min_frequency=2, special_tokens=[
-            SEQUENCE_START_TOKEN,
-            "<pad>",
-            "</s>",
-            "<unk>",
-            MASK_TOKEN,
-        ])
+        tokenizer.train(files=paths, vocab_size=vocab_size, show_progress=True, special_tokens=SPECIAL_TOKENS)
 
     tokenizer.save_model(save_dir)
     print(f"Saved trained tokenizer to {save_dir}")
@@ -72,7 +66,7 @@ class ChildesDataModule(LightningDataModule):
         self.num_workers = num_workers
         self.fb = fb
 
-        tokenizer_dir = os.path.join("tokenizers", f"lm_feedback_childes_vocab_{vocab_size}")
+        tokenizer_dir = os.path.join("tokenizers", f"childes_vocab_{vocab_size}")
         os.makedirs(tokenizer_dir, exist_ok=True)
 
         data_df = pd.read_csv(lm_data_path)
@@ -83,11 +77,16 @@ class ChildesDataModule(LightningDataModule):
         data_train, data_dev = train_test_split(data, test_size=DEV_SET_SIZE, shuffle=True,
                                                 random_state=SPLIT_RANDOM_STATE)
 
-        if not os.path.isfile(os.path.join(tokenizer_dir, "vocab.json")):
+        vocab_dir = os.path.join(tokenizer_dir, "vocab.json")
+        merges_path = os.path.join(tokenizer_dir, "merges.txt")
+        if not os.path.isfile(vocab_dir) or not os.path.isfile(merges_path):
             # Train tokenizer if it doesn't exist yet
             train_tokenizer(tokenizer_dir, vocab_size, data_train)
 
-        self.tokenizer = RobertaTokenizerFast.from_pretrained(tokenizer_dir, max_len=max_len)
+        tokenizer = ByteLevelBPETokenizer.from_file(vocab_filename=vocab_dir, merges_filename=merges_path)
+        self.tokenizer = PreTrainedTokenizerFast(tokenizer_object=tokenizer._tokenizer, pad_token=PAD_TOKEN,
+                                                 bos_token=SEQUENCE_START_TOKEN, eos_token=SEQUENCE_END_TOKEN,
+                                                 return_token_type_ids=False)
 
         self.dataset_dev = ChildesLMDataset(data_dev, tokenizer=self.tokenizer, max_len=max_len)
         self.dataset_train = ChildesLMDataset(data_train, tokenizer=self.tokenizer, max_len=max_len)
@@ -98,7 +97,8 @@ class ChildesDataModule(LightningDataModule):
             data_fb["reward"] = data_fb.apply(compute_reward_value, axis=1)
             data_fb = data_fb[["utt_transcript_clean", "reward"]]
             if capitalize_bos:
-                data_fb["utt_transcript_clean"] = data_fb["utt_transcript_clean"].apply(lambda x: x[0].capitalize() + x[1:])
+                data_fb["utt_transcript_clean"] = data_fb["utt_transcript_clean"].apply(
+                    lambda x: x[0].capitalize() + x[1:])
 
             data_fb_train, data_fb_dev = train_test_split(data_fb, test_size=DEV_SET_SIZE, shuffle=True,
                                                           random_state=SPLIT_RANDOM_STATE)
@@ -182,14 +182,14 @@ class BabyLMDataModule(LightningDataModule):
                     os.makedirs(data_path_clean, exist_ok=True)
                     Path(clean_src_file_path).write_text(preprocessed, encoding="utf-8")
 
-        tokenizer_dir = os.path.join("tokenizers", f"lm_feedback_{training_track}_vocab_{vocab_size}{subset_name}")
+        tokenizer_dir = os.path.join("tokenizers", f"llama_{training_track}_vocab_{vocab_size}{subset_name}")
         os.makedirs(tokenizer_dir, exist_ok=True)
 
         if not os.path.isfile(os.path.join(tokenizer_dir, "vocab.json")):
             # Train tokenizer if it doesn't exist yet
             train_tokenizer(tokenizer_dir, vocab_size, data_file_names=data_file_names, training_track=training_track)
 
-        self.tokenizer = RobertaTokenizerFast.from_pretrained(tokenizer_dir, max_len=max_len)
+        self.tokenizer = LlamaTokenizerFast.from_pretrained(tokenizer_dir, max_len=max_len)
 
         self.dataset_dev = BabyLMDataset(BABYLM_DATA_PATH_DEV_CLEAN, tokenizer=self.tokenizer, max_len=max_len,
                                          data_file_names=data_file_names,

@@ -28,15 +28,6 @@ class BabyLMModel(LightningModule):
         self.model_family = "causal" if model_name == "babyllama" else "masked"
 
     def configure_model(self):
-        # config = RobertaConfig(
-        #     vocab_size=vocab_size,
-        #     max_position_embeddings=max_len,
-        #     num_attention_heads=12,
-        #     num_hidden_layers=12,
-        #     type_vocab_size=1,
-        #     hidden_size=384,
-        #     intermediate_size=1024,
-        # )
         self.vocab_size = self.trainer.datamodule.vocab_size
         self.max_len = self.trainer.datamodule.max_len
 
@@ -60,15 +51,10 @@ class BabyLMModel(LightningModule):
             "rope_theta": 10000.0,
             "tie_word_embeddings": False,
             "vocab_size": self.vocab_size,
-            "max_position_embeddings": 2*self.max_len,
+            "max_position_embeddings": 2 * self.max_len,
         })
 
-
-        # self.model = RobertaForMaskedLM(config=config)
-        # self.model = AutoModelForMaskedLM.from_pretrained("lgcharpe/ELC_BERT_small_baby_10M", trust_remote_code=True) #TODO , config=config
         self.model = LlamaForCausalLM(config)
-
-        # self.model.init_weights()
 
     def get_hf_cktp_path(self, best=False):
         path = "ckpt_huggingface_best" if best else "ckpt_huggingface_last"
@@ -160,7 +146,8 @@ class BabyLMModel(LightningModule):
             sequence = SEQUENCE_START_TOKEN + prefix
             for step in range(10):
                 if self.model_family == "causal":
-                    inputs = tokenizer(sequence, return_tensors="pt", add_special_tokens=False).to(device)
+                    inputs = tokenizer(sequence, return_tensors="pt", add_special_tokens=False,
+                                       return_token_type_ids=False).to(device)
                 else:
                     inputs = tokenizer(sequence + MASK_TOKEN, return_tensors="pt", add_special_tokens=False).to(device)
 
