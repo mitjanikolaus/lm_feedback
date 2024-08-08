@@ -169,7 +169,7 @@ class BabyLMModel(LightningModule):
             out = evaluator.simple_evaluate(
                 model="hf" if self.model_family == "causal" else "hf-mlm",
                 model_args=f"pretrained={self.get_hf_cktp_path()}",
-                tasks=["blimp_filtered"],
+                tasks=["blimp_filtered", "zorro"],
                 batch_size=1024,
                 device=f"cuda:{self.trainer.device_ids[0]}",
                 cache_requests=True,
@@ -178,6 +178,12 @@ class BabyLMModel(LightningModule):
         for key, val in out["results"].items():
             if key == "blimp_filtered":
                 self.log(key, val["acc,none"], prog_bar=True, sync_dist=True)
+            if key == "zorro":
+                self.log(key, val["acc,none"], prog_bar=True, sync_dist=True)
+            elif key.startswith("blimp_"):
+                self.log(key.replace("blimp_", "blimp/"), val["acc,none"])
+            elif key.startswith("zorro_"):
+                self.log(key.replace("zorro_", "zorro/"), val["acc,none"])
             else:
                 self.log(key, val["acc,none"])
 
