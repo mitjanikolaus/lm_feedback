@@ -27,6 +27,8 @@ class BabyLMModel(LightningModule):
         self.model_name = model_name
         self.model_family = "causal" if model_name == "babyllama" else "masked"
 
+        self.eval_blimp_on_next_val = True
+
     def configure_model(self):
         self.vocab_size = self.trainer.datamodule.vocab_size
         self.max_len = self.trainer.datamodule.max_len
@@ -160,7 +162,7 @@ class BabyLMModel(LightningModule):
 
             print(sequence.replace(SEQUENCE_START_TOKEN, ""))
 
-    def eval_babylm(self):
+    def eval_babylm(self, tasks):
         print("Evaluating babylm metrics")
         self.save_huggingface_checkpoint()
 
@@ -169,7 +171,7 @@ class BabyLMModel(LightningModule):
             out = evaluator.simple_evaluate(
                 model="hf" if self.model_family == "causal" else "hf-mlm",
                 model_args=f"pretrained={self.get_hf_cktp_path()}",
-                tasks=["blimp_filtered", "zorro"],
+                tasks=tasks,
                 batch_size=1024,
                 device=f"cuda:{self.trainer.device_ids[0]}",
                 cache_requests=True,
@@ -190,7 +192,14 @@ class BabyLMModel(LightningModule):
     def on_validation_epoch_end(self):
         self.generate_sample_sentences()
         if not self.trainer.state.stage == 'sanity_check':
-            self.eval_babylm()
+
+            if self.eval_blimp_on_next_val:
+                self.eval_babylm(["blimp_filtered", "zorro"])
+                self.eval_blimp_on_next_val = False
+            else:
+                self.eval_babylm(["zorro"])
+                self.eval_blimp_on_next_val = True
+
 
     def on_save_checkpoint(self, checkpoint):
         new_best_val_loss = checkpoint["callbacks"]["EarlyStopping{'monitor': 'val_loss', 'mode': 'min'}"][
