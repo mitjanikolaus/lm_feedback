@@ -14,21 +14,38 @@ ZORRO_BABYLM_EVAL_DIR = os.path.join(BABYLM_DATA_DIR, "evaluation_data", "zorro"
 
 def convert_to_babylm_df(lines, filename, capitalize_sentences):
     items = []
+    linguistic_term = os.path.basename(filename).split("-")[0]
+    uid = os.path.basename(filename).split("-")[1].split(".txt")[0]
+
     for id, (sentence_good, sentence_bad) in enumerate(zip(lines[0::2], lines[1::2])):
+        if "\n" in sentence_bad:
+            print(sentence_good)
+        sentence_good = sentence_good.replace(" .", ".")
+        sentence_bad = sentence_bad.replace(" .", ".")
+        sentence_good = sentence_good.replace(" ?", "?")
+        sentence_bad = sentence_bad.replace(" ?", "?")
+        sentence_good = sentence_good.replace(" !", "!")
+        sentence_bad = sentence_bad.replace(" !", "!")
+
         if capitalize_sentences:
             sentence_good = sentence_good[0].capitalize() + sentence_good[1:]
             sentence_bad = sentence_bad[0].capitalize() + sentence_bad[1:]
+
+        # Capitalize "I"
+        if sentence_good[:2] == "i ":
+            sentence_good = sentence_good[0].capitalize() + sentence_good[1:]
+        if sentence_bad[:2] == "i ":
+            sentence_bad = sentence_bad[0].capitalize() + sentence_bad[1:]
+        sentence_good = sentence_good.replace(" i ", " I ")
+        sentence_bad = sentence_bad.replace(" i ", " I ")
 
         item = {
             "sentence_good": sentence_good,
             "sentence_bad": sentence_bad,
             "field": "syntax",
-            "linguistic_term": os.path.basename(filename).split("-")[0],
-            "UID": os.path.basename(filename).split("-")[1].split(".txt")[0],
+            "linguistic_term": linguistic_term,
+            "UID": uid,
             "simple_LM_method": True,
-            "one_prefix_method": False,
-            "two_prefix_method": False,
-            "lexically_identical": True,
             "pair_id": id
         }
         items.append(item)
@@ -36,8 +53,7 @@ def convert_to_babylm_df(lines, filename, capitalize_sentences):
     return pd.DataFrame.from_records(items)
 
 
-
-def filter_zorro(filter_by_vocab=False, capitalize_sentences=True):
+def filter_zorro(filter_by_vocab=False, capitalize_sentences=False):
     os.makedirs(ZORRO_BABYLM_EVAL_DIR, exist_ok=True)
 
     if os.path.isfile(os.path.join(BABYLM_DATA_DIR, "vocab_allowed.p")):
