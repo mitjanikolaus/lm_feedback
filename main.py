@@ -22,13 +22,15 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class BabyLMModel(LightningModule):
-    def __init__(self, initial_lr=1e-4, rl_loss_weight=0, model_name=MODEL_BABYLLAMA):
+    def __init__(self, initial_lr=1e-4, rl_loss_weight=0, model_name=MODEL_BABYLLAMA, num_hidden_layers=16):
         super().__init__()
 
         self.save_hyperparameters()
 
         self.initial_lr = initial_lr
         self.model_name = model_name
+        self.num_hidden_layers = num_hidden_layers
+
         self.model_family = "causal" if model_name in MODELS_CAUSAL else "masked"
 
         self.eval_blimp_on_next_val = True
@@ -50,7 +52,7 @@ class BabyLMModel(LightningModule):
                 "initializer_range": 0.02,
                 "intermediate_size": 1024,
                 "num_attention_heads": 8,
-                "num_hidden_layers": 16,
+                "num_hidden_layers": self.num_hidden_layers,
                 "num_key_value_heads": 8,
                 "pretraining_tp": 1,
                 "rms_norm_eps": 1e-06,
@@ -68,7 +70,7 @@ class BabyLMModel(LightningModule):
                 vocab_size=self.vocab_size,
                 n_positions=2*self.max_len,
                 n_embd=512,
-                n_layer=2,
+                n_layer=self.num_hidden_layers,
                 n_head=8,
                 bos_token_id=tokenizer.bos_token_id,
                 eos_token_id=tokenizer.eos_token_id,
