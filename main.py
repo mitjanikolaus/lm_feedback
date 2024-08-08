@@ -7,56 +7,77 @@ from pytorch_lightning import LightningModule
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.cli import LightningCLI
 from pytorch_lightning.loggers import WandbLogger
-from transformers import LlamaForCausalLM, LlamaConfig
+from transformers import LlamaForCausalLM, LlamaConfig, GPT2LMHeadModel, GPT2Config
 from torch.optim import AdamW
 from data import ChildesDataModule, SEQUENCE_START_TOKEN, MASK_TOKEN
 
 from lm_eval import evaluator
 
 
+MODEL_BABYLLAMA = "babyllama"
+MODEL_GPT2 = "gpt2"
+MODELS_CAUSAL = [MODEL_BABYLLAMA, MODEL_GPT2]
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class BabyLMModel(LightningModule):
-    def __init__(self, initial_lr=1e-4, rl_loss_weight=0, model_name="babyllama"):
+    def __init__(self, initial_lr=1e-4, rl_loss_weight=0, model_name=MODEL_BABYLLAMA):
         super().__init__()
 
         self.save_hyperparameters()
 
         self.initial_lr = initial_lr
         self.model_name = model_name
-        self.model_family = "causal" if model_name == "babyllama" else "masked"
+        self.model_family = "causal" if model_name in MODELS_CAUSAL else "masked"
 
         self.eval_blimp_on_next_val = True
 
     def configure_model(self):
         self.vocab_size = self.trainer.datamodule.vocab_size
         self.max_len = self.trainer.datamodule.max_len
-
         tokenizer = self.trainer.datamodule.tokenizer
-        config = LlamaConfig(**{
-            "attention_bias": False,
-            "attention_dropout": 0.0,
-            "bos_token_id": tokenizer.bos_token_id,
-            "eos_token_id": tokenizer.eos_token_id,
-            "pad_token_id": tokenizer.pad_token_id,
-            "hidden_act": "silu",
-            "hidden_size": 512,
-            "initializer_range": 0.02,
-            "intermediate_size": 1024,
-            "num_attention_heads": 8,
-            "num_hidden_layers": 16,
-            "num_key_value_heads": 8,
-            "pretraining_tp": 1,
-            "rms_norm_eps": 1e-06,
-            "rope_scaling": None,
-            "rope_theta": 10000.0,
-            "tie_word_embeddings": False,
-            "vocab_size": self.vocab_size,
-            "max_position_embeddings": 2 * self.max_len,
-        })
 
-        self.model = LlamaForCausalLM(config)
+        if self.model_name == MODEL_BABYLLAMA:
+            config = LlamaConfig(**{
+                "attention_bias": False,
+                "attention_dropout": 0.0,
+                "bos_token_id": tokenizer.bos_token_id,
+                "eos_token_id": tokenizer.eos_token_id,
+                "pad_token_id": tokenizer.pad_token_id,
+                "hidden_act": "silu",
+                "hidden_size": 512,
+                "initializer_range": 0.02,
+                "intermediate_size": 1024,
+                "num_attention_heads": 8,
+                "num_hidden_layers": 16,
+                "num_key_value_heads": 8,
+                "pretraining_tp": 1,
+                "rms_norm_eps": 1e-06,
+                "rope_scaling": None,
+                "rope_theta": 10000.0,
+                "tie_word_embeddings": False,
+                "vocab_size": self.vocab_size,
+                "max_position_embeddings": 2 * self.max_len,
+            })
+
+            self.model = LlamaForCausalLM(config)
+
+        elif self.model_name == MODEL_GPT2:
+            config = GPT2Config(
+                vocab_size=self.vocab_size,
+                n_positions=2*self.max_len,
+                n_embd=512,
+                n_layer=2,
+                n_head=8,
+                bos_token_id=tokenizer.bos_token_id,
+                eos_token_id=tokenizer.eos_token_id,
+                pad_token_id=tokenizer.pad_token_id,
+            )
+            self.model = GPT2LMHeadModel(config)
+
+        else:
+            raise RuntimeError("Unknown model name: ", self.model_name)
 
     def get_hf_cktp_path(self, best=False):
         path = "ckpt_huggingface_best" if best else "ckpt_huggingface_last"
@@ -199,7 +220,6 @@ class BabyLMModel(LightningModule):
             else:
                 self.eval_babylm(["zorro"])
                 self.eval_blimp_on_next_val = True
-
 
     def on_save_checkpoint(self, checkpoint):
         new_best_val_loss = checkpoint["callbacks"]["EarlyStopping{'monitor': 'val_loss', 'mode': 'min'}"][
