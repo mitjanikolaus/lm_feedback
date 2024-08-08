@@ -15,8 +15,8 @@ BLIMP_FILTERED_EVAL_DIR = os.path.join(BABYLM_DATA_DIR, "evaluation_data", "blim
 def filter_blimp():
     os.makedirs(BLIMP_FILTERED_EVAL_DIR, exist_ok=True)
 
-    if os.path.isfile(os.path.join(BLIMP_FILTERED_EVAL_DIR, "vocab_allowed.p")):
-        vocab_allowed = pickle.load(open(os.path.join(BLIMP_FILTERED_EVAL_DIR, "vocab_allowed.p"), "rb"))
+    if os.path.isfile(os.path.join(BABYLM_DATA_DIR, "vocab_allowed.p")):
+        vocab_allowed = pickle.load(open(os.path.join(BABYLM_DATA_DIR, "vocab_allowed.p"), "rb"))
     else:
         vocab_allowed = set()
         data_df = pd.read_csv(CHILDES_LM_DATA_FILE)
@@ -25,7 +25,7 @@ def filter_blimp():
         for sentence in tqdm(data):
             vocab_allowed = vocab_allowed | set(nltk.word_tokenize(sentence))
 
-        pickle.dump(vocab_allowed, open(os.path.join(BLIMP_FILTERED_EVAL_DIR, "vocab_allowed.p"), "wb"))
+        pickle.dump(vocab_allowed, open(os.path.join(BABYLM_DATA_DIR, "vocab_allowed.p"), "wb"))
 
     missing_words = set()
     for file in glob.glob(os.path.join(BLIMP_EVAL_DIR, "*.jsonl")):
