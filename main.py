@@ -22,7 +22,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class BabyLMModel(LightningModule):
-    def __init__(self, initial_lr=1e-4, rl_loss_weight=0, model_name=MODEL_BABYLLAMA, num_hidden_layers=16):
+    def __init__(self, initial_lr=1e-4, rl_loss_weight=0, model_name=MODEL_BABYLLAMA, num_hidden_layers=16,
+                 hidden_size=512, num_attention_heads=8):
         super().__init__()
 
         self.save_hyperparameters()
@@ -30,7 +31,8 @@ class BabyLMModel(LightningModule):
         self.initial_lr = initial_lr
         self.model_name = model_name
         self.num_hidden_layers = num_hidden_layers
-
+        self.hidden_size = hidden_size
+        self.num_attention_heads = num_attention_heads
         self.model_family = "causal" if model_name in MODELS_CAUSAL else "masked"
 
         self.eval_blimp_on_next_val = True
@@ -48,10 +50,10 @@ class BabyLMModel(LightningModule):
                 "eos_token_id": tokenizer.eos_token_id,
                 "pad_token_id": tokenizer.pad_token_id,
                 "hidden_act": "silu",
-                "hidden_size": 512,
+                "hidden_size": self.hidden_size,
                 "initializer_range": 0.02,
                 "intermediate_size": 1024,
-                "num_attention_heads": 8,
+                "num_attention_heads": self.num_attention_heads,
                 "num_hidden_layers": self.num_hidden_layers,
                 "num_key_value_heads": 8,
                 "pretraining_tp": 1,
@@ -69,9 +71,9 @@ class BabyLMModel(LightningModule):
             config = GPT2Config(
                 vocab_size=self.vocab_size,
                 n_positions=2*self.max_len,
-                n_embd=512,
+                n_embd=self.hidden_size,
                 n_layer=self.num_hidden_layers,
-                n_head=8,
+                n_head=self.num_attention_heads,
                 bos_token_id=tokenizer.bos_token_id,
                 eos_token_id=tokenizer.eos_token_id,
                 pad_token_id=tokenizer.pad_token_id,
