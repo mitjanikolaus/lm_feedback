@@ -7,12 +7,14 @@ from pytorch_lightning import LightningModule
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.cli import LightningCLI
 from pytorch_lightning.loggers import WandbLogger
-from transformers import LlamaForCausalLM, LlamaConfig, GPT2LMHeadModel, GPT2Config
+from torch import nn
+from transformers import LlamaForCausalLM, LlamaConfig, GPT2LMHeadModel, GPT2Config, GPT2Model
 from torch.optim import AdamW
 from data import ChildesDataModule, SEQUENCE_START_TOKEN, MASK_TOKEN
 
 from lm_eval import evaluator
 
+from model import ChildesGPT
 
 MODEL_BABYLLAMA = "babyllama"
 MODEL_GPT2 = "gpt2"
@@ -22,7 +24,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class BabyLMModel(LightningModule):
-    def __init__(self, initial_lr=1e-4, rl_loss_weight=0, model_name=MODEL_BABYLLAMA, num_hidden_layers=16):
+    def __init__(self, initial_lr=1e-4, rl_loss_weight=0, model_name=MODEL_BABYLLAMA, num_hidden_layers=16,
+                 eval_batch_size=1024):
         super().__init__()
 
         self.save_hyperparameters()
@@ -30,6 +33,8 @@ class BabyLMModel(LightningModule):
         self.initial_lr = initial_lr
         self.model_name = model_name
         self.num_hidden_layers = num_hidden_layers
+
+        self.eval_batch_size = eval_batch_size
 
         self.model_family = "causal" if model_name in MODELS_CAUSAL else "masked"
 
@@ -76,7 +81,7 @@ class BabyLMModel(LightningModule):
                 eos_token_id=tokenizer.eos_token_id,
                 pad_token_id=tokenizer.pad_token_id,
             )
-            self.model = GPT2LMHeadModel(config)
+            self.model = ChildesGPT(config, tokenizer, self.eval_batch_size, self.max_len)
 
         else:
             raise RuntimeError("Unknown model name: ", self.model_name)
@@ -187,15 +192,12 @@ class BabyLMModel(LightningModule):
 
     def eval_babylm(self, tasks):
         print("Evaluating babylm metrics")
-        self.save_huggingface_checkpoint()
-
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             out = evaluator.simple_evaluate(
-                model="hf" if self.model_family == "causal" else "hf-mlm",
-                model_args=f"pretrained={self.get_hf_cktp_path()}",
+                self.model,
                 tasks=tasks,
-                batch_size=1024,
+                batch_size=self.eval_batch_size,
                 device=f"cuda:{self.trainer.device_ids[0]}",
                 cache_requests=True,
             )
