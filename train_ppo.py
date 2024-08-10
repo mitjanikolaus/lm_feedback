@@ -40,7 +40,7 @@ def build_policy_trainer_dataset(tokenizer, input_min_text_length=2, input_max_t
         sample["query"] = tokenizer.decode(sample["input_ids"])
         return sample
 
-    ds = ds.map(tokenize, batched=False)
+    ds = ds.map(tokenize, batched=False, num_proc=10)
     ds.set_format(type="torch")
     return ds
 
