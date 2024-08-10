@@ -1,4 +1,5 @@
 import warnings
+from dataclasses import dataclass
 from typing import Optional, Union, Callable, List, Dict, Tuple, Any
 
 import torch
@@ -24,13 +25,58 @@ TEST_SET_SIZE = 0.1
 SPLIT_RANDOM_STATE = 1
 
 
+@dataclass
+class CFRewardDataCollatorWithPadding:
+    r"""
+    Reward DataCollator class that pads the inputs to the maximum length of the batch.
+    Args:
+        tokenizer (`PreTrainedTokenizerBase`):
+            The tokenizer used for encoding the data.
+        padding (`Union[bool, str, `PaddingStrategy`]`, `optional`, defaults to `True`):
+            padding_strategy to pass to the tokenizer.
+        max_length (`Optional[int]`, `optional`, defaults to `None`):
+            The maximum length of the sequence to be processed.
+        pad_to_multiple_of (`Optional[int]`, `optional`, defaults to `None`):
+            If set will pad the sequence to a multiple of the provided value.
+        return_tensors (`str`, `optional`, defaults to `"pt"`):
+            The tensor type to use.
+    """
+
+    tokenizer: PreTrainedTokenizerBase
+    padding: Union[bool, str] = True
+    max_length: Optional[int] = None
+    pad_to_multiple_of: Optional[int] = None
+    return_tensors: str = "pt"
+
+    def __call__(self, samples: List[Dict[str, Any]]) -> Dict[str, Any]:
+        samples_batched = []
+        # check if we have a margin. If we do, we need to batch it as well
+        for sample in samples:
+            samples_batched.append(
+                {
+                    "input_ids": sample["input_ids"],
+                    "attention_mask": sample["attention_mask"],
+                }
+            )
+        batch = self.tokenizer.pad(
+            samples_batched,
+            padding=self.padding,
+            max_length=self.max_length,
+            pad_to_multiple_of=self.pad_to_multiple_of,
+            return_tensors=self.return_tensors,
+        ).data
+
+        batch["return_loss"] = True
+        batch["reward"] = torch.tensor([sample["reward"] for sample in samples], dtype=torch.float)
+        return batch
+
+
 class CFRewardTrainer(RewardTrainer):
 
     def __init__(
         self,
         model: Optional[Union[PreTrainedModel, nn.Module]] = None,
         args: Optional[RewardConfig] = None,
-        data_collator: Optional[DataCollator] = None,
         train_dataset: Optional[Dataset] = None,
         eval_dataset: Optional[Union[Dataset, Dict[str, Dataset]]] = None,
         tokenizer: Optional[PreTrainedTokenizerBase] = None,
@@ -45,6 +91,8 @@ class CFRewardTrainer(RewardTrainer):
         max_length: Optional[int] = None,
         peft_config: Optional[Dict] = None,
     ):
+        data_collator = CFRewardDataCollatorWithPadding(tokenizer, max_length=max_length)
+
         super(CFRewardTrainer, self).__init__(
             model, args, data_collator, train_dataset, eval_dataset, tokenizer, model_init, compute_metrics, callbacks,
             optimizers, preprocess_logits_for_metrics, max_length, peft_config
