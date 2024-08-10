@@ -1,12 +1,16 @@
 import warnings
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Optional, Union, Callable, List, Dict, Tuple, Any
 
 import torch
+from accelerate.utils import gather_object
 from sklearn.model_selection import train_test_split
 from torch import nn
 from tqdm import tqdm
 import pandas as pd
+from transformers.trainer_pt_utils import nested_detach
+from trl.trainer.utils import print_rich_table
 
 from data import compute_reward_value
 from utils import CHILDES_RL_DATA_FILE
@@ -97,6 +101,64 @@ class CFRewardTrainer(RewardTrainer):
             model, args, data_collator, train_dataset, eval_dataset, tokenizer, model_init, compute_metrics, callbacks,
             optimizers, preprocess_logits_for_metrics, max_length, peft_config
         )
+
+    def prediction_step(
+        self,
+        model: Union[PreTrainedModel, nn.Module],
+        inputs: Dict[str, Union[torch.Tensor, Any]],
+        prediction_loss_only: bool,
+        ignore_keys: Optional[List[str]] = None,
+    ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
+        inputs = self._prepare_inputs(inputs)
+
+        with torch.no_grad():
+            loss, output_dict = self.compute_loss(model, inputs, return_outputs=True)
+
+        if prediction_loss_only:
+            return (loss, None, None)
+
+        loss = loss.detach()
+        logits = output_dict["logits"]
+        logits = nested_detach(logits)
+        # Stack accepted against rejected, mean over logits
+        # and softmax to get preferences between accepted and rejected to sum to 1
+        # logits = torch.stack(logits).mean(dim=2).softmax(dim=0).T
+
+        labels = torch.zeros(logits.shape[0])
+        labels = self._prepare_inputs(labels)
+
+        return loss, logits, labels
+
+    def visualize_samples(self, num_print_samples: int):
+        """
+        Visualize the reward model logits prediction
+
+        Args:
+            num_print_samples (`int`, defaults to `4`):
+                The number of samples to print. Set to `-1` to print all samples.
+        """
+        eval_dataloader = self.get_eval_dataloader()
+        table = defaultdict(list)
+        for _, inputs in enumerate(eval_dataloader):
+            _, logits, _ = self.prediction_step(self.model, inputs, prediction_loss_only=False)
+            text = self.tokenizer.batch_decode(inputs["input_ids"], skip_special_tokens=True)
+            table["text"].extend(gather_object(text))
+            table["reward"].extend(gather_object(inputs["reward"]))
+            table["logits"].extend(
+                gather_object([[round(inner_item, 4) for inner_item in item] for item in logits.tolist()])
+            )
+            if num_print_samples >= 0 and len(table["chosen_text"]) >= num_print_samples:
+                break
+        df = pd.DataFrame(table)
+        if self.accelerator.process_index == 0:
+            print_rich_table(df[:num_print_samples])
+            if "wandb" in self.args.report_to:
+                import wandb
+
+                if wandb.run is not None:
+                    wandb.log({"completions": wandb.Table(dataframe=df)})
+
+
 
     def compute_loss(
         self,
@@ -189,7 +251,7 @@ def main():
     raw_datasets = raw_datasets.map(
         preprocess_function,
         batched=True,
-        num_proc=4
+        num_proc=4,
     )
     train_dataset = raw_datasets["train"]
     eval_dataset = raw_datasets["test"]
