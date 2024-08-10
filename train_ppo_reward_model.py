@@ -152,9 +152,7 @@ class CFRewardTrainer(RewardTrainer):
             text = self.tokenizer.batch_decode(inputs["input_ids"], skip_special_tokens=True)
             table["text"].extend(gather_object(text))
             table["reward"].extend(gather_object(inputs["reward"]))
-            table["logits"].extend(gather_object(logits))
-            print(table)
-            print(len(table["text"]), len(table["reward"]), len(table["logits"]))
+            table["logits"].extend(gather_object(logits.cpu()))
             # table["logits"].extend(
             #     gather_object([[round(inner_item, 4) for inner_item in item] for item in logits.tolist()])
             # )
