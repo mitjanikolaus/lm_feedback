@@ -46,12 +46,13 @@ def build_policy_trainer_dataset(tokenizer, input_min_text_length=2, input_max_t
     return ds
 
 
-def eval_babylm(model, tasks, ppo_trainer, device, eval_batch_size=1024):
+def eval_babylm(model, model_args, tasks, ppo_trainer, device, eval_batch_size=1024):
     print("Evaluating babylm metrics")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         out = evaluator.simple_evaluate(
-            model,
+            model=model,
+            model_args=model_args,
             tasks=tasks,
             batch_size=eval_batch_size,
             device=f"cuda:{device}",
@@ -133,7 +134,11 @@ def main(args):
         ppo_trainer.log_stats(stats, batch, rewards)
 
         if epoch % 5 == 0:
-            eval_babylm(model, tasks=["zorro", "blimp_filtered"], ppo_trainer=ppo_trainer, device=ppo_trainer.accelerator.device.index)
+            model.save_pretrained("ppo_ckpt")
+            tokenizer.save_pretrained("ppo_ckpt")
+
+            eval_babylm(model="hf", model_args=f"pretrained={ppo_ckpt}", tasks=["zorro", "blimp_filtered"],
+                        ppo_trainer=ppo_trainer, device=ppo_trainer.accelerator.device.index)
 
 
 def parse_args():
