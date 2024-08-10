@@ -98,7 +98,7 @@ def main(args):
         #### Compute sentiment score
         texts = [q + r for q, r in zip(batch["query"], batch["response"])]
         # pipe_outputs = sentiment_pipe(texts, **sent_kwargs)
-        texts_encoded = value_model_tokenizer(texts, padding=True, truncation=True, return_tensors="pt")
+        texts_encoded = value_model_tokenizer(texts, return_special_tokens_mask=True, padding=True, truncation=True, return_tensors="pt", max_length=output_max_length+10)
         value_model_outputs = value_model(texts_encoded)
         rewards = value_model_outputs.logits
         # rewards = [torch.tensor(score) for score in positive_scores]
