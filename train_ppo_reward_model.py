@@ -3,7 +3,6 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Optional, Union, Callable, List, Dict, Tuple, Any
 
-import numpy as np
 import torch
 from accelerate.utils import gather_object
 from sklearn.model_selection import train_test_split
@@ -19,7 +18,7 @@ from utils import CHILDES_RL_DATA_FILE
 tqdm.pandas()
 
 from transformers import AutoTokenizer, HfArgumentParser, AutoModelForSequenceClassification, PreTrainedModel, \
-    DataCollator, PreTrainedTokenizerBase, TrainerCallback, EvalPrediction
+    PreTrainedTokenizerBase, TrainerCallback
 from datasets import Dataset, DatasetDict
 
 from trl import RewardConfig, ModelConfig, \
