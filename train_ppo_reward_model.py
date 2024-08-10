@@ -183,7 +183,7 @@ class CFRewardTrainer(RewardTrainer):
             raise NotImplementedError()
         else:
             # loss = -nn.functional.logsigmoid(logits * inputs["reward"]).mean()
-            loss = nn.functional.mse_loss(logits, target=inputs["reward"])
+            loss = nn.functional.mse_loss(logits.squeeze(), target=inputs["reward"])
 
         if return_outputs:
             return loss, {
