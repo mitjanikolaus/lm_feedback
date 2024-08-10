@@ -61,9 +61,9 @@ def eval_babylm(model, model_args, tasks, ppo_trainer, device, eval_batch_size=1
 
     for key, val in out["results"].items():
         if key == "blimp_filtered":
-            ppo_trainer.accelerator.log(key, val["acc,none"], prog_bar=True, sync_dist=True)
+            ppo_trainer.accelerator.log(key, val["acc,none"])
         if key == "zorro":
-            ppo_trainer.accelerator.log(key, val["acc,none"], prog_bar=True, sync_dist=True)
+            ppo_trainer.accelerator.log(key, val["acc,none"])
         elif key.startswith("blimp_"):
             ppo_trainer.accelerator.log(key.replace("blimp_", "blimp/"), val["acc,none"])
         elif key.startswith("zorro_"):
