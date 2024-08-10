@@ -57,19 +57,11 @@ def eval_babylm(model, model_args, tasks, ppo_trainer, device, eval_batch_size=1
             batch_size=eval_batch_size,
             device=f"cuda:{device}",
             cache_requests=True,
+            limit=5,
         )
 
-    for key, val in out["results"].items():
-        if key == "blimp_filtered":
-            ppo_trainer.accelerator.log(key, val["acc,none"])
-        if key == "zorro":
-            ppo_trainer.accelerator.log(key, val["acc,none"])
-        elif key.startswith("blimp_"):
-            ppo_trainer.accelerator.log(key.replace("blimp_", "blimp/"), val["acc,none"])
-        elif key.startswith("zorro_"):
-            ppo_trainer.accelerator.log(key.replace("zorro_", "zorro/"), val["acc,none"])
-        else:
-            ppo_trainer.accelerator.log(key, val["acc,none"])
+    results = {key.replace("_", "/"): val for key, val in out["results"].items()}
+    ppo_trainer.accelerator.log(results)
 
 
 def main(args):
