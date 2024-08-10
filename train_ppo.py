@@ -60,7 +60,7 @@ def eval_babylm(model, model_args, tasks, ppo_trainer, device, eval_batch_size=1
             limit=5,
         )
 
-    results = {key.replace("_", "/"): val for key, val in out["results"].items()}
+    results = {key.replace("_", "/"): val["acc,none"] for key, val in out["results"].items() if "acc,none" in val}
     ppo_trainer.accelerator.log(results)
 
 
