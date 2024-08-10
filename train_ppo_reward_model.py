@@ -108,6 +108,11 @@ class CFRewardTrainer(RewardTrainer):
             optimizers, preprocess_logits_for_metrics, max_length, peft_config
         )
 
+    def evaluate(self, *args, **kwargs):
+        num_print_samples = kwargs.pop("num_print_samples", 10)
+        self.visualize_samples(num_print_samples)
+        return super().evaluate(*args, **kwargs)
+
     def prediction_step(
         self,
         model: Union[PreTrainedModel, nn.Module],
@@ -141,7 +146,7 @@ class CFRewardTrainer(RewardTrainer):
         Visualize the reward model logits prediction
 
         Args:
-            num_print_samples (`int`, defaults to `4`):
+            num_print_samples (`int`, defaults to `10`):
                 The number of samples to print. Set to `-1` to print all samples.
         """
         eval_dataloader = self.get_eval_dataloader()
