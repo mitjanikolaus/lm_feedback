@@ -1,7 +1,9 @@
 import warnings
+from typing import Optional, Union, Callable, List, Dict, Tuple, Any
 
 import torch
 from sklearn.model_selection import train_test_split
+from torch import nn
 from tqdm import tqdm
 import pandas as pd
 
@@ -10,7 +12,8 @@ from utils import CHILDES_RL_DATA_FILE
 
 tqdm.pandas()
 
-from transformers import AutoTokenizer, HfArgumentParser, AutoModelForSequenceClassification
+from transformers import AutoTokenizer, HfArgumentParser, AutoModelForSequenceClassification, PreTrainedModel, \
+    DataCollator, PreTrainedTokenizerBase, TrainerCallback, EvalPrediction
 from datasets import Dataset, DatasetDict
 
 from trl import RewardConfig, ModelConfig, \
@@ -19,6 +22,63 @@ from trl import RewardConfig, ModelConfig, \
 
 TEST_SET_SIZE = 0.1
 SPLIT_RANDOM_STATE = 1
+
+
+class CFRewardTrainer(RewardTrainer):
+
+    def __init__(
+        self,
+        model: Optional[Union[PreTrainedModel, nn.Module]] = None,
+        args: Optional[RewardConfig] = None,
+        data_collator: Optional[DataCollator] = None,
+        train_dataset: Optional[Dataset] = None,
+        eval_dataset: Optional[Union[Dataset, Dict[str, Dataset]]] = None,
+        tokenizer: Optional[PreTrainedTokenizerBase] = None,
+        model_init: Optional[Callable[[], PreTrainedModel]] = None,
+        compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
+        callbacks: Optional[List[TrainerCallback]] = None,
+        optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (
+            None,
+            None,
+        ),
+        preprocess_logits_for_metrics: Optional[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = None,
+        max_length: Optional[int] = None,
+        peft_config: Optional[Dict] = None,
+    ):
+        super(CFRewardTrainer, self).__init__(
+            model, args, data_collator, train_dataset, eval_dataset, tokenizer, model_init, compute_metrics, callbacks,
+            optimizers, preprocess_logits_for_metrics, max_length, peft_config
+        )
+
+    def compute_loss(
+        self,
+        model: Union[PreTrainedModel, nn.Module],
+        inputs: Dict[str, Union[torch.Tensor, Any]],
+        return_outputs=False,
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, torch.Tensor]]]:
+        if not self.use_reward_data_collator:
+            warnings.warn(
+                "The current compute_loss is implemented for RewardDataCollatorWithPadding,"
+                " if you are using a custom data collator make sure you know what you are doing or"
+                " implement your own compute_loss method."
+            )
+        logits = model(
+            input_ids=inputs["input_ids"],
+            attention_mask=inputs["attention_mask"],
+            return_dict=True,
+        )["logits"]
+        # calculate loss, optionally modulate with margin
+        if "margin" in inputs:
+            raise NotImplementedError()
+        else:
+            loss = -nn.functional.logsigmoid(logits * inputs["reward"]).mean()
+
+        if return_outputs:
+            return loss, {
+                "logits": logits,
+                "rewards": inputs["reward"],
+            }
+        return loss
 
 
 def build_reward_model_trainer_datasets(fb_data_path=CHILDES_RL_DATA_FILE):
@@ -95,7 +155,7 @@ def main():
     ################
     # Training
     ################
-    trainer = RewardTrainer(
+    trainer = CFRewardTrainer(
         model=model,
         tokenizer=tokenizer,
         args=config,
