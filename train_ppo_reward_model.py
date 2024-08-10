@@ -25,7 +25,7 @@ from trl import RewardConfig, ModelConfig, \
     get_quantization_config, get_kbit_device_map, RewardTrainer, get_peft_config
 
 
-TEST_SET_SIZE = 0.1
+TEST_SET_SIZE = 0.05
 SPLIT_RANDOM_STATE = 1
 
 
@@ -123,6 +123,7 @@ class CFRewardTrainer(RewardTrainer):
         # Stack accepted against rejected, mean over logits
         # and softmax to get preferences between accepted and rejected to sum to 1
         # logits = torch.stack(logits).mean(dim=2).softmax(dim=0).T
+        logits = torch.stack([logits_sample[0] for logits_sample in logits])#.unsqueeze(1).T
 
         labels = torch.zeros(logits.shape[0])
         labels = self._prepare_inputs(labels)
@@ -144,9 +145,7 @@ class CFRewardTrainer(RewardTrainer):
             text = self.tokenizer.batch_decode(inputs["input_ids"], skip_special_tokens=True)
             table["text"].extend(gather_object(text))
             table["reward"].extend(gather_object(inputs["reward"]))
-            table["logits"].extend(
-                gather_object([[round(inner_item, 4) for inner_item in item] for item in logits.tolist()])
-            )
+            table["logits"].extend(gather_object(logits))
             if num_print_samples >= 0 and len(table["chosen_text"]) >= num_print_samples:
                 break
         df = pd.DataFrame(table)
@@ -157,7 +156,6 @@ class CFRewardTrainer(RewardTrainer):
 
                 if wandb.run is not None:
                     wandb.log({"completions": wandb.Table(dataframe=df)})
-
 
 
     def compute_loss(
@@ -251,7 +249,7 @@ def main():
     raw_datasets = raw_datasets.map(
         preprocess_function,
         batched=True,
-        num_proc=4,
+        num_proc=4
     )
     train_dataset = raw_datasets["train"]
     eval_dataset = raw_datasets["test"]
