@@ -133,7 +133,7 @@ def main(args):
         stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
         ppo_trainer.log_stats(stats, batch, rewards)
 
-        if epoch % 5 == 0:
+        if epoch % 10 == 0:
             model.save_pretrained("ppo_ckpt")
             tokenizer.save_pretrained("ppo_ckpt")
 
