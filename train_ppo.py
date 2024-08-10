@@ -137,7 +137,7 @@ def main(args):
             model.save_pretrained("ppo_ckpt")
             tokenizer.save_pretrained("ppo_ckpt")
 
-            eval_babylm(model="hf", model_args=f"pretrained={ppo_ckpt}", tasks=["zorro", "blimp_filtered"],
+            eval_babylm(model="hf", model_args=f"pretrained=ppo_ckpt", tasks=["zorro", "blimp_filtered"],
                         ppo_trainer=ppo_trainer, device=ppo_trainer.accelerator.device.index)
 
 
