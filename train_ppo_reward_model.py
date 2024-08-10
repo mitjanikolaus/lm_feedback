@@ -111,7 +111,7 @@ class CFRewardTrainer(RewardTrainer):
     def evaluate(self, *args, **kwargs):
         num_print_samples = kwargs.pop("num_print_samples", 10)
         self.visualize_samples(num_print_samples)
-        return super().evaluate(*args, **kwargs)
+        return super(RewardTrainer).evaluate(*args, **kwargs)
 
     def prediction_step(
         self,
