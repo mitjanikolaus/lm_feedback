@@ -3,6 +3,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Optional, Union, Callable, List, Dict, Tuple, Any
 
+import numpy as np
 import torch
 from accelerate.utils import gather_object
 from sklearn.model_selection import train_test_split
@@ -27,6 +28,13 @@ from trl import RewardConfig, ModelConfig, \
 
 TEST_SET_SIZE = 0.03
 SPLIT_RANDOM_STATE = 1
+
+
+def compute_mse(eval_pred) -> Dict[str, float]:
+    predictions, labels = eval_pred
+    mse = ((predictions.squeeze() - labels.squeeze())**2).mean().item()
+
+    return {"mse": mse}
 
 
 @dataclass
@@ -85,7 +93,6 @@ class CFRewardTrainer(RewardTrainer):
         eval_dataset: Optional[Union[Dataset, Dict[str, Dataset]]] = None,
         tokenizer: Optional[PreTrainedTokenizerBase] = None,
         model_init: Optional[Callable[[], PreTrainedModel]] = None,
-        compute_metrics: Optional[Callable[[EvalPrediction], Dict]] = None,
         callbacks: Optional[List[TrainerCallback]] = None,
         optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (
             None,
@@ -96,7 +103,7 @@ class CFRewardTrainer(RewardTrainer):
         peft_config: Optional[Dict] = None,
     ):
         data_collator = CFRewardDataCollatorWithPadding(tokenizer, max_length=max_length)
-
+        compute_metrics = compute_mse
         super(CFRewardTrainer, self).__init__(
             model, args, data_collator, train_dataset, eval_dataset, tokenizer, model_init, compute_metrics, callbacks,
             optimizers, preprocess_logits_for_metrics, max_length, peft_config
@@ -123,10 +130,10 @@ class CFRewardTrainer(RewardTrainer):
         # Stack accepted against rejected, mean over logits
         # and softmax to get preferences between accepted and rejected to sum to 1
         # logits = torch.stack(logits).mean(dim=2).softmax(dim=0).T
-        logits = torch.stack([logits_sample[0] for logits_sample in logits])#.unsqueeze(1).T
+        # logits = torch.stack([logits_sample[0] for logits_sample in logits]).unsqueeze(1)
 
-        labels = torch.zeros(logits.shape[0])
-        labels = self._prepare_inputs(labels)
+        labels = inputs["reward"]
+        # labels = self._prepare_inputs(labels)
 
         return loss, logits, labels
 
@@ -146,7 +153,12 @@ class CFRewardTrainer(RewardTrainer):
             table["text"].extend(gather_object(text))
             table["reward"].extend(gather_object(inputs["reward"]))
             table["logits"].extend(gather_object(logits))
-            if num_print_samples >= 0 and len(table["chosen_text"]) >= num_print_samples:
+            print(table)
+            print(len(table["text"]), len(table["reward"]), len(table["logits"]))
+            # table["logits"].extend(
+            #     gather_object([[round(inner_item, 4) for inner_item in item] for item in logits.tolist()])
+            # )
+            if num_print_samples >= 0 and len(table["text"]) >= num_print_samples:
                 break
         df = pd.DataFrame(table)
         if self.accelerator.process_index == 0:
@@ -156,7 +168,6 @@ class CFRewardTrainer(RewardTrainer):
 
                 if wandb.run is not None:
                     wandb.log({"completions": wandb.Table(dataframe=df)})
-
 
     def compute_loss(
         self,
@@ -173,12 +184,12 @@ class CFRewardTrainer(RewardTrainer):
         if "margin" in inputs:
             raise NotImplementedError()
         else:
-            loss = -nn.functional.logsigmoid(logits * inputs["reward"]).mean()
+            # loss = -nn.functional.logsigmoid(logits * inputs["reward"]).mean()
+            loss = nn.functional.mse_loss(logits, target=inputs["reward"])
 
         if return_outputs:
             return loss, {
                 "logits": logits,
-                "rewards": inputs["reward"],
             }
         return loss
 
