@@ -57,7 +57,6 @@ def eval_babylm(model, model_args, tasks, ppo_trainer, device, eval_batch_size=1
             batch_size=eval_batch_size,
             device=f"cuda:{device}",
             cache_requests=True,
-            limit=5,
         )
 
     results = {key.replace("_", "/"): val["acc,none"] for key, val in out["results"].items() if "acc,none" in val}
