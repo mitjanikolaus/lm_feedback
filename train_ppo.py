@@ -100,6 +100,7 @@ def main(args):
         texts_encoded = value_model_tokenizer(texts, padding=True, truncation=True, return_tensors="pt", max_length=output_max_length+10)
         value_model_outputs = value_model(**texts_encoded)
         rewards = value_model_outputs.logits.squeeze()
+        rewards = [torch.tensor(r) for r in rewards]
 
         #### Run PPO step
         stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
