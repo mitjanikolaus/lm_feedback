@@ -104,12 +104,6 @@ class CFRewardTrainer(RewardTrainer):
         inputs: Dict[str, Union[torch.Tensor, Any]],
         return_outputs=False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, torch.Tensor]]]:
-        if not self.use_reward_data_collator:
-            warnings.warn(
-                "The current compute_loss is implemented for RewardDataCollatorWithPadding,"
-                " if you are using a custom data collator make sure you know what you are doing or"
-                " implement your own compute_loss method."
-            )
         logits = model(
             input_ids=inputs["input_ids"],
             attention_mask=inputs["attention_mask"],
