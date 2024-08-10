@@ -18,6 +18,7 @@ from datasets import Dataset
 
 from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
 from trl.core import LengthSampler
+from lm_eval import evaluator
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -43,6 +44,31 @@ def build_policy_trainer_dataset(tokenizer, input_min_text_length=2, input_max_t
     ds = ds.map(tokenize, batched=False, num_proc=10)
     ds.set_format(type="torch")
     return ds
+
+
+def eval_babylm(model, tasks, ppo_trainer, device, eval_batch_size=1024):
+    print("Evaluating babylm metrics")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        out = evaluator.simple_evaluate(
+            model,
+            tasks=tasks,
+            batch_size=eval_batch_size,
+            device=f"cuda:{device}",
+            cache_requests=True,
+        )
+
+    for key, val in out["results"].items():
+        if key == "blimp_filtered":
+            ppo_trainer.accelerator.log(key, val["acc,none"], prog_bar=True, sync_dist=True)
+        if key == "zorro":
+            ppo_trainer.accelerator.log(key, val["acc,none"], prog_bar=True, sync_dist=True)
+        elif key.startswith("blimp_"):
+            ppo_trainer.accelerator.log(key.replace("blimp_", "blimp/"), val["acc,none"])
+        elif key.startswith("zorro_"):
+            ppo_trainer.accelerator.log(key.replace("zorro_", "zorro/"), val["acc,none"])
+        else:
+            ppo_trainer.accelerator.log(key, val["acc,none"])
 
 
 def main(args):
@@ -100,11 +126,14 @@ def main(args):
         texts_encoded = value_model_tokenizer(texts, padding=True, truncation=True, return_tensors="pt", max_length=output_max_length+10)
         value_model_outputs = value_model(**texts_encoded)
         rewards = value_model_outputs.logits.squeeze()
-        rewards = [torch.tensor(r) for r in rewards]
+        rewards = [torch.tensor(r.item()) for r in rewards]
 
         #### Run PPO step
         stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
         ppo_trainer.log_stats(stats, batch, rewards)
+
+        if epoch % 5 == 0:
+            eval_babylm(model, tasks=["zorro", "blimp_filtered"], ppo_trainer=ppo_trainer, device=ppo_trainer.accelerator.device.index)
 
 
 def parse_args():
