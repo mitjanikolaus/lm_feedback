@@ -25,7 +25,7 @@ from trl import RewardConfig, ModelConfig, \
     get_quantization_config, get_kbit_device_map, RewardTrainer, get_peft_config
 
 
-TEST_SET_SIZE = 0.03
+TEST_SET_SIZE = 0.1
 SPLIT_RANDOM_STATE = 1
 
 
