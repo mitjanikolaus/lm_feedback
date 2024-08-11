@@ -96,7 +96,7 @@ def main(args):
     generation_kwargs = {
         "min_length": -1,
         "top_k": 0.0,
-        "top_p": 1.0, #TODO top-p 0.9?
+        "top_p": args.generation_top_p,
         "do_sample": True,
         "pad_token_id": tokenizer.eos_token_id,
     }
@@ -141,6 +141,11 @@ def parse_args():
     argparser.add_argument(
         "--value-model",
         type=str,
+    )
+    argparser.add_argument(
+        "--generation_top_p",
+        type=float,
+        default=1.0,
     )
 
     args = argparser.parse_args()
