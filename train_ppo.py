@@ -24,7 +24,7 @@ from lm_eval import evaluator
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-def build_policy_trainer_dataset(tokenizer, input_min_text_length=2, input_max_text_length=8, fb_data_path=CHILDES_RL_DATA_FILE, max_len=128):
+def build_policy_trainer_dataset(tokenizer, input_min_text_length=1, input_max_text_length=4, fb_data_path=CHILDES_RL_DATA_FILE):
     assert tokenizer.pad_token == tokenizer.eos_token
 
     data_fb = pd.read_csv(fb_data_path)
