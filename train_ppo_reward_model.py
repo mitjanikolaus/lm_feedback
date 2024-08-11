@@ -61,7 +61,6 @@ class CFRewardDataCollatorWithPadding:
 
     def __call__(self, samples: List[Dict[str, Any]]) -> Dict[str, Any]:
         samples_batched = []
-        # check if we have a margin. If we do, we need to batch it as well
         for sample in samples:
             samples_batched.append(
                 {
@@ -129,15 +128,11 @@ class CFRewardTrainer(RewardTrainer):
             return (loss, None, None)
 
         loss = loss.detach()
+
         logits = output_dict["logits"]
         logits = nested_detach(logits)
-        # Stack accepted against rejected, mean over logits
-        # and softmax to get preferences between accepted and rejected to sum to 1
-        # logits = torch.stack(logits).mean(dim=2).softmax(dim=0).T
-        # logits = torch.stack([logits_sample[0] for logits_sample in logits]).unsqueeze(1)
 
         labels = inputs["reward"]
-        # labels = self._prepare_inputs(labels)
 
         return loss, logits, labels
 
@@ -157,9 +152,6 @@ class CFRewardTrainer(RewardTrainer):
             table["text"].extend(gather_object(text))
             table["reward"].extend(gather_object(inputs["reward"].cpu()))
             table["logits"].extend(gather_object(logits.squeeze().cpu()))
-            # table["logits"].extend(
-            #     gather_object([[round(inner_item, 4) for inner_item in item] for item in logits.tolist()])
-            # )
             if num_print_samples >= 0 and len(table["text"]) >= num_print_samples:
                 break
         df = pd.DataFrame(table)
