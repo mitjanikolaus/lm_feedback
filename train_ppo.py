@@ -71,8 +71,6 @@ def main(args):
         batch_size=args.batch_size,
     )
 
-    # sent_kwargs = {"top_k": None, "function_to_apply": "none", "batch_size": 16}
-
     model = AutoModelForCausalLMWithValueHead.from_pretrained(args.policy_model)
     tokenizer = AutoTokenizer.from_pretrained(args.policy_model)
 
@@ -114,7 +112,7 @@ def main(args):
             response_tensors.append(response.squeeze()[-gen_len:])
         batch["response"] = [tokenizer.decode(r.squeeze()) for r in response_tensors]
 
-        #### Compute sentiment score
+        #### Compute reward
         texts = [q + r for q, r in zip(batch["query"], batch["response"])]
         texts_encoded = value_model_tokenizer(texts, padding=True, truncation=True, return_tensors="pt", max_length=output_max_length+10)
         value_model_outputs = value_model(**texts_encoded)
