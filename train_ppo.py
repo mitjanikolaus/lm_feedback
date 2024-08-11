@@ -89,7 +89,7 @@ def main(args):
     value_model_tokenizer = AutoTokenizer.from_pretrained(args.value_model)
 
     output_min_length = 4
-    output_max_length = 16
+    output_max_length = 20
     output_length_sampler = LengthSampler(output_min_length, output_max_length)
 
     generation_kwargs = {
