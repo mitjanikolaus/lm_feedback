@@ -68,6 +68,7 @@ def main(args):
         model_name="childes-gpt",
         learning_rate=1.41e-5,
         log_with="wandb",
+        batch_size=args.batch_size,
     )
 
     # sent_kwargs = {"top_k": None, "function_to_apply": "none", "batch_size": 16}
@@ -146,6 +147,11 @@ def parse_args():
         "--generation_top_p",
         type=float,
         default=1.0,
+    )
+    argparser.add_argument(
+        "--batch_size",
+        type=int,
+        default=512,
     )
 
     args = argparser.parse_args()
