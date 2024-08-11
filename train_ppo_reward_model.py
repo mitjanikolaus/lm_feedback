@@ -174,11 +174,9 @@ class CFRewardTrainer(RewardTrainer):
             attention_mask=inputs["attention_mask"],
             return_dict=True,
         )["logits"]
-        # calculate loss, optionally modulate with margin
         if "margin" in inputs:
             raise NotImplementedError()
         else:
-            # loss = -nn.functional.logsigmoid(logits * inputs["reward"]).mean()
             loss = nn.functional.mse_loss(logits.squeeze(), target=inputs["reward"])
 
         if return_outputs:
