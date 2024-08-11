@@ -89,7 +89,7 @@ def main(args):
     value_model_tokenizer = AutoTokenizer.from_pretrained(args.value_model)
 
     output_min_length = 4
-    output_max_length = 32
+    output_max_length = 20
     output_length_sampler = LengthSampler(output_min_length, output_max_length)
 
     generation_kwargs = {
@@ -123,7 +123,7 @@ def main(args):
         stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
         ppo_trainer.log_stats(stats, batch, rewards)
 
-        if epoch % 50 == 0:
+        if epoch % 25 == 0:
             model.save_pretrained("ppo_ckpt")
             tokenizer.save_pretrained("ppo_ckpt")
 
