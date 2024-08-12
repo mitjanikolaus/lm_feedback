@@ -103,7 +103,7 @@ def main(args):
     for epoch, batch in enumerate(tqdm(ppo_trainer.dataloader)):
         query_tensors = batch["input_ids"]
 
-        #### Get response from gpt2
+        #### Get completion from gpt2
         response_tensors = []
         for query in query_tensors:
             gen_len = output_length_sampler()
