@@ -66,8 +66,8 @@ def eval_babylm(model, model_args, tasks, ppo_trainer, device, eval_batch_size=1
 def main(args):
     config = PPOConfig(
         model_name="childes-gpt",
-        learning_rate=1.41e-5,
-        log_with="wandb",
+        learning_rate=args.learning_rate,
+        log_with=args.log_with,
         batch_size=args.batch_size,
     )
 
@@ -134,12 +134,17 @@ def main(args):
 def parse_args():
     argparser = argparse.ArgumentParser()
     argparser.add_argument(
-        "--policy-model",
+        "--policy_model",
         type=str,
     )
     argparser.add_argument(
-        "--value-model",
+        "--value_model",
         type=str,
+    )
+    argparser.add_argument(
+        "--log_with",
+        type=str,
+        default="wandb",
     )
     argparser.add_argument(
         "--generation_top_p",
@@ -150,6 +155,11 @@ def parse_args():
         "--batch_size",
         type=int,
         default=512,
+    )
+    argparser.add_argument(
+        "--learning_rate",
+        type=float,
+        default=1.41e-5,
     )
 
     args = argparser.parse_args()
