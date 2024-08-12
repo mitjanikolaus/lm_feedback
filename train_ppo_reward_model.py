@@ -213,6 +213,11 @@ def main():
     ################
     # Model & Tokenizer
     ################
+    torch_dtype = (
+        model_config.torch_dtype
+        if model_config.torch_dtype in ["auto", None]
+        else getattr(torch, model_config.torch_dtype)
+    )
     quantization_config = get_quantization_config(model_config)
     model_kwargs = dict(
         revision=model_config.model_revision,
