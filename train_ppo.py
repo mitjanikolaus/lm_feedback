@@ -69,6 +69,9 @@ def main(args):
         learning_rate=args.learning_rate,
         log_with=args.log_with,
         batch_size=args.batch_size,
+        mini_batch_size=args.mini_batch_size,
+        exp_name=args.exp_name,
+        seed=args.seed,
     )
 
     model = AutoModelForCausalLMWithValueHead.from_pretrained(args.policy_model)
@@ -147,12 +150,27 @@ def parse_args():
         default="wandb",
     )
     argparser.add_argument(
+        "--exp_name",
+        type=str,
+        default="test",
+    )
+    argparser.add_argument(
+        "--seed",
+        type=int,
+        default=1,
+    )
+    argparser.add_argument(
         "--generation_top_p",
         type=float,
         default=1.0,
     )
     argparser.add_argument(
         "--batch_size",
+        type=int,
+        default=512,
+    )
+    argparser.add_argument(
+        "--mini_batch_size",
         type=int,
         default=512,
     )
