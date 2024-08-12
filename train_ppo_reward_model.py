@@ -161,7 +161,7 @@ class CFRewardTrainer(RewardTrainer):
                 import wandb
 
                 if wandb.run is not None:
-                    wandb.log({f"completions_{self.accelerator.step}": wandb.Table(dataframe=df)})
+                    wandb.log({f"completions": wandb.Table(dataframe=df)})
 
     def compute_loss(
         self,
