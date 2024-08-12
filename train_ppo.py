@@ -23,6 +23,8 @@ from lm_eval import evaluator
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+CKPT_DIR = "ckpts_trl"
+
 
 def build_policy_trainer_dataset(tokenizer, input_min_text_length=1, input_max_text_length=4, fb_data_path=CHILDES_RL_DATA_FILE):
     assert tokenizer.pad_token == tokenizer.eos_token
@@ -127,12 +129,11 @@ def main(args):
         ppo_trainer.log_stats(stats, batch, rewards)
 
         if epoch % 25 == 0:
-            model.save_pretrained("ppo_ckpt")
-            tokenizer.save_pretrained("ppo_ckpt")
+            model.save_pretrained(os.path.join(CKPT_DIR, args.exp_name))
+            tokenizer.save_pretrained(os.path.join(CKPT_DIR, args.exp_name))
 
-            eval_babylm(model="hf", model_args=f"pretrained=ppo_ckpt", tasks=["zorro", "blimp_filtered"],
+            eval_babylm(model="hf", model_args=f"pretrained={os.path.join(CKPT_DIR, args.exp_name)}", tasks=["zorro", "blimp_filtered"],
                         ppo_trainer=ppo_trainer, device=ppo_trainer.accelerator.device.index)
-
 
 def parse_args():
     argparser = argparse.ArgumentParser()
@@ -186,5 +187,6 @@ def parse_args():
 
 
 if __name__ == "__main__":
+    os.makedirs(CKPT_DIR, exist_ok=True)
     args = parse_args()
     main(args)
