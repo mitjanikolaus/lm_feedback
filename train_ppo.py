@@ -183,7 +183,7 @@ def parse_args():
     argparser.add_argument(
         "--mini_batch_size",
         type=int,
-        default=512,
+        default=128,
     )
     argparser.add_argument(
         "--learning_rate",
