@@ -222,7 +222,7 @@ def main():
     reward_config_fields["max_length"].default = 128
     reward_config_fields["remove_unused_columns"].default = False
     reward_config_fields["load_best_model_at_end"].default = True
-    reward_config_fields["metric_for_best_model"].default = "eval/loss"
+    reward_config_fields["metric_for_best_model"].default = "mse"
     reward_config_fields["greater_is_better"].default = False
     reward_config_fields["save_total_limit"].default = 1
     reward_config_fields["save_steps"].default = 50
