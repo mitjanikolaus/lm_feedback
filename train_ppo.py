@@ -35,9 +35,10 @@ def build_policy_trainer_dataset(tokenizer, query_data_path, input_min_text_leng
         data_queries["transcript_clean"] = data_queries["utt_transcript_clean"]
         del data_queries["utt_transcript_clean"]
 
+    data_queries = data_queries[["transcript_clean"]]
+
     ds = Dataset.from_pandas(data_queries)
 
-    ds.remove_columns(["response_is_clarification_request", "response_is_acknowledgement"])
 
     ds = ds.filter(lambda x: len(x["transcript_clean"]) > 10, batched=False)
 
