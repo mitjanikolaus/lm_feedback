@@ -27,6 +27,7 @@ from trl import RewardConfig, ModelConfig, \
 
 
 os.environ["WANDB_PROJECT"] = "lm_feedback_reward_model"
+os.environ["WANDB_LOG_MODEL"] = False
 
 TEST_SET_SIZE = 0.1
 SPLIT_RANDOM_STATE = 1
@@ -111,8 +112,8 @@ class CFRewardTrainer(RewardTrainer):
         )
 
     def evaluate(self, *args, **kwargs):
-        num_print_samples = kwargs.pop("num_print_samples", 10)
-        self.visualize_samples(num_print_samples)
+        # num_print_samples = kwargs.pop("num_print_samples", 10)
+        # self.visualize_samples(num_print_samples)
         return super(RewardTrainer, self).evaluate(*args, **kwargs)
 
     def prediction_step(
@@ -209,9 +210,34 @@ def build_reward_model_trainer_datasets(fb_data_path=CHILDES_RL_DATA_FILE):
 
 
 def main():
-    parser = HfArgumentParser((RewardConfig, ModelConfig))
-    config, model_config = parser.parse_args_into_dataclasses()
-    config.gradient_checkpointing_kwargs = dict(use_reentrant=False)
+    trainer_config_args = RewardConfig
+    reward_config_fields = trainer_config_args.__dataclass_fields__
+    reward_config_fields["bf16"].default = True
+    reward_config_fields["per_device_train_batch_size"].default = 64
+    reward_config_fields["per_device_eval_batch_size"].default = 1024
+    reward_config_fields["logging_steps"].default = 10
+    reward_config_fields["num_train_epochs"].default = 1
+    reward_config_fields["learning_rate"].default = 1.41e-5
+    reward_config_fields["optim"].default = "adamw_torch"
+    reward_config_fields["max_length"].default = 128
+
+    reward_config_fields["load_best_model_at_end"].default = True
+    reward_config_fields["metric_for_best_model"].default = "eval/loss"
+    reward_config_fields["greater_is_better"].default = False
+    reward_config_fields["save_total_limit"].default = 1
+    reward_config_fields["save_steps"].default = 50
+    reward_config_fields["evaluation_strategy"].default = "steps"
+    reward_config_fields["eval_steps"].default = 50
+    reward_config_fields["eval_on_start"].default = True
+
+    model_config_args = ModelConfig
+    model_config_fields = model_config_args.__dataclass_fields__
+    model_config_fields["lora_task_type"].default = "SEQ_CLS"
+
+    parser = HfArgumentParser((trainer_config_args, model_config_args))
+
+    trainer_config, model_config = parser.parse_args_into_dataclasses()
+    trainer_config.gradient_checkpointing_kwargs = dict(use_reentrant=False)
 
     ################
     # Model & Tokenizer
@@ -246,7 +272,7 @@ def main():
     raw_datasets = build_reward_model_trainer_datasets()
 
     def preprocess_function(sample):
-        tokenized = tokenizer(sample["utt_transcript_clean"], truncation=True, max_length=config.max_length)
+        tokenized = tokenizer(sample["utt_transcript_clean"], truncation=True, max_length=trainer_config.max_length)
         tokenized["reward"] = sample["reward"]
 
         return tokenized
@@ -266,13 +292,16 @@ def main():
     trainer = CFRewardTrainer(
         model=model,
         tokenizer=tokenizer,
-        args=config,
+        args=trainer_config,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
         peft_config=get_peft_config(model_config),
     )
     trainer.train()
-    trainer.save_model(config.output_dir)
+
+    trainer._load_best_model()
+
+    trainer.model.visualize_samples(100)
 
     metrics = trainer.evaluate()
     trainer.log_metrics("eval", metrics)
