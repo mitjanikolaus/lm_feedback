@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Optional, Union, Callable, List, Dict, Tuple, Any
 
 import torch
-from accelerate.utils import gather_object
 from sklearn.model_selection import train_test_split
 from torch import nn
 from tqdm import tqdm
@@ -117,7 +116,7 @@ class WandbPredictionProgressCallback(WandbCallback):
             num_samples (int, optional): Number of samples to select from
               the validation dataset for generating predictions.
               Defaults to 100.
-            freq (int, optional): Frequency of logging. Defaults to 2.
+            freq (int, optional): Frequency of logging. Defaults to 50.
         """
         super().__init__()
         self.trainer = trainer
@@ -127,8 +126,6 @@ class WandbPredictionProgressCallback(WandbCallback):
 
     def on_evaluate(self, args, state, control, **kwargs):
         super().on_evaluate(args, state, control, **kwargs)
-        # control the frequency of logging by logging the predictions
-        # every `freq` steps
         if state.global_step % self.freq == 0:
             predictions = self.trainer.predict(self.sample_dataset)
 
@@ -138,37 +135,9 @@ class WandbPredictionProgressCallback(WandbCallback):
             table["logits"] = predictions.predictions.squeeze()
 
             df = pd.DataFrame(table)
-            print_rich_table(df)
+            print_rich_table(df[:10])
             records_table = self._wandb.Table(dataframe=df)
-            # log the table to wandb
             self._wandb.log({"sample_predictions": records_table})
-            # table = defaultdict(list)
-            # for _, inputs in enumerate(eval_dataloader):
-            #     _, logits, _ = self.prediction_step(self.model, inputs, prediction_loss_only=False)
-            #     text = self.tokenizer.batch_decode(inputs["input_ids"], skip_special_tokens=True)
-            #     table["text"].extend(gather_object(text))
-            #     table["reward"].extend(gather_object(inputs["reward"].cpu()))
-            #     table["logits"].extend(gather_object(logits.squeeze().cpu()))
-            #     if num_print_samples >= 0 and len(table["text"]) >= num_print_samples:
-            #         break
-
-
-            # if "wandb" in self.args.report_to:
-            #     print("logging completions table of size ", len(df))
-            #     self._wandb.log({table_name: self._wandb.Table(dataframe=df)})
-            #
-            #
-            #
-            # # generate predictions
-            # predictions = self.trainer.predict(self.sample_dataset)
-            # # decode predictions and labels
-            # predictions = decode_predictions(self.tokenizer, predictions)
-            # # add predictions to a wandb.Table
-            # predictions_df = pd.DataFrame(predictions)
-            # predictions_df["epoch"] = state.epoch
-            # records_table = self._wandb.Table(dataframe=predictions_df)
-            # # log the table to wandb
-            # self._wandb.log({"sample_predictions": records_table})
 
 
 class CFRewardTrainer(RewardTrainer):
@@ -198,8 +167,6 @@ class CFRewardTrainer(RewardTrainer):
         )
 
     def evaluate(self, *args, **kwargs):
-        # num_print_samples = kwargs.pop("num_print_samples", 10)
-        # self.visualize_samples(num_print_samples)
         return super(RewardTrainer, self).evaluate(*args, **kwargs)
 
     def prediction_step(
@@ -226,31 +193,6 @@ class CFRewardTrainer(RewardTrainer):
 
         return loss, logits, labels
 
-    # def visualize_samples(self, num_print_samples: int, table_name="completions"):
-    #     """
-    #     Visualize the reward model logits prediction
-    #
-    #     Args:
-    #         num_print_samples (`int`, defaults to `10`):
-    #             The number of samples to print. Set to `-1` to print all samples.
-    #     """
-    #     if self.accelerator.process_index == 0:
-    #         eval_dataloader = self.get_eval_dataloader()
-    #         table = defaultdict(list)
-    #         for _, inputs in enumerate(eval_dataloader):
-    #             _, logits, _ = self.prediction_step(self.model, inputs, prediction_loss_only=False)
-    #             text = self.tokenizer.batch_decode(inputs["input_ids"], skip_special_tokens=True)
-    #             table["text"].extend(gather_object(text))
-    #             table["reward"].extend(gather_object(inputs["reward"].cpu()))
-    #             table["logits"].extend(gather_object(logits.squeeze().cpu()))
-    #             if num_print_samples >= 0 and len(table["text"]) >= num_print_samples:
-    #                 break
-    #         df = pd.DataFrame(table)
-    #
-    #         print_rich_table(df[:num_print_samples])
-    #         if "wandb" in self.args.report_to:
-    #             print("logging completions table of size ", len(df))
-    #             self._wandb.log({table_name: self._wandb.Table(dataframe=df)})
 
     def compute_loss(
         self,
@@ -387,7 +329,7 @@ def main():
         trainer=trainer,
         tokenizer=tokenizer,
         val_dataset=eval_dataset,
-        num_samples=10,
+        num_samples=1000,
         freq=trainer_config.eval_steps,
     )
     trainer.add_callback(progress_callback)
@@ -395,8 +337,6 @@ def main():
     trainer.train()
 
     trainer._load_best_model()
-
-    # trainer.visualize_samples(100, table_name="best_model_completions")
 
     metrics = trainer.evaluate()
     trainer.log_metrics("eval", metrics)
