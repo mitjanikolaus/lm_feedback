@@ -312,7 +312,7 @@ def main():
     reward_config_fields["save_total_limit"].default = 1
     reward_config_fields["save_steps"].default = 50
     reward_config_fields["save_only_model"].default = True
-    reward_config_fields["evaluation_strategy"].default = "steps"
+    reward_config_fields["eval_strategy"].default = "steps"
     reward_config_fields["eval_steps"].default = 50
     reward_config_fields["eval_on_start"].default = True
     reward_config_fields["output_dir"].default = "reward_modeling"
