@@ -220,7 +220,7 @@ def main():
     reward_config_fields["learning_rate"].default = 1.41e-5
     reward_config_fields["optim"].default = "adamw_torch"
     reward_config_fields["max_length"].default = 128
-
+    reward_config_fields["remove_unused_columns"].default = False
     reward_config_fields["load_best_model_at_end"].default = True
     reward_config_fields["metric_for_best_model"].default = "eval/loss"
     reward_config_fields["greater_is_better"].default = False
