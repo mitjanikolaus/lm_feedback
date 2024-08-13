@@ -80,6 +80,7 @@ def main(args):
         mini_batch_size=args.mini_batch_size,
         exp_name=args.exp_name,
         seed=args.seed,
+        accelerator_kwargs={"fp16": True}
     )
 
     model = AutoModelForCausalLMWithValueHead.from_pretrained(args.policy_model)
