@@ -315,7 +315,6 @@ def main():
     reward_config_fields["eval_strategy"].default = "steps"
     reward_config_fields["eval_steps"].default = 50
     reward_config_fields["eval_on_start"].default = True
-    reward_config_fields["output_dir"].default = "reward_modeling"
 
     model_config_args = ModelConfig
     model_config_fields = model_config_args.__dataclass_fields__
