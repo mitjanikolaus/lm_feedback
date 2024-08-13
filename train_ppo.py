@@ -76,7 +76,8 @@ def main(args):
         mini_batch_size=args.mini_batch_size,
         seed=args.seed,
         accelerator_kwargs={"mixed_precision": "bf16"},
-        tracker_kwargs={"wandb": {"project": "lm_feedback_ppo", "name": args.exp_name}}
+        tracker_project_name="lm_feedback_ppo",
+        tracker_kwargs={"wandb": {"name": args.exp_name}}
     )
 
     model = AutoModelForCausalLMWithValueHead.from_pretrained(args.policy_model)
