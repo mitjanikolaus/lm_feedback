@@ -7,7 +7,7 @@ import torch
 from tqdm import tqdm
 import pandas as pd
 
-from utils import CHILDES_RL_DATA_FILE
+from utils import CHILDES_LM_DATA_FILE
 
 tqdm.pandas()
 
@@ -25,20 +25,26 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 CKPT_DIR = "ckpts_trl"
 
 
-def build_policy_trainer_dataset(tokenizer, input_min_text_length=1, input_max_text_length=4, fb_data_path=CHILDES_RL_DATA_FILE):
+def build_policy_trainer_dataset(tokenizer, query_data_path, input_min_text_length=1, input_max_text_length=4):
     assert tokenizer.pad_token == tokenizer.eos_token
 
-    data_fb = pd.read_csv(fb_data_path)
+    data_queries = pd.read_csv(query_data_path)
     # data_fb = data_fb.iloc[:1000]
-    ds = Dataset.from_pandas(data_fb)
+
+    if "utt_transcript_clean" in data_queries.columns:
+        data_queries["transcript_clean"] = data_queries["utt_transcript_clean"]
+        del data_queries["utt_transcript_clean"]
+
+    ds = Dataset.from_pandas(data_queries)
+
     ds.remove_columns(["response_is_clarification_request", "response_is_acknowledgement"])
 
-    ds = ds.filter(lambda x: len(x["utt_transcript_clean"]) > 10, batched=False)
+    ds = ds.filter(lambda x: len(x["transcript_clean"]) > 10, batched=False)
 
     input_size = LengthSampler(input_min_text_length, input_max_text_length)
 
     def tokenize(sample):
-        sample["input_ids"] = tokenizer.encode(sample["utt_transcript_clean"])[: input_size()]
+        sample["input_ids"] = tokenizer.encode(sample["transcript_clean"])[: input_size()]
         sample["query"] = tokenizer.decode(sample["input_ids"])
         return sample
 
@@ -78,7 +84,7 @@ def main(args):
     model = AutoModelForCausalLMWithValueHead.from_pretrained(args.policy_model)
     tokenizer = AutoTokenizer.from_pretrained(args.policy_model)
 
-    dataset = build_policy_trainer_dataset(tokenizer)
+    dataset = build_policy_trainer_dataset(tokenizer, query_data_path=args.query_data_path)
 
     def collator(data):
         return dict((key, [d[key] for d in data]) for key in data[0])
@@ -143,6 +149,11 @@ def parse_args():
     argparser.add_argument(
         "--value_model",
         type=str,
+    )
+    argparser.add_argument(
+        "--query_data_path",
+        type=str,
+        default=CHILDES_LM_DATA_FILE
     )
     argparser.add_argument(
         "--log_with",
