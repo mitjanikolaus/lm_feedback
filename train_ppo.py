@@ -1,5 +1,4 @@
 import argparse
-import math
 import os
 import warnings
 
@@ -18,11 +17,10 @@ from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
 from trl.core import LengthSampler
 from lm_eval import evaluator
 
-os.environ["WANDB_PROJECT"] = "lm_feedback_ppo"
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-CKPT_DIR = "ckpts_trl"
+CKPT_DIR = "ckpts_ppo"
 
 
 def build_policy_trainer_dataset(tokenizer, query_data_path, input_min_text_length=1, input_max_text_length=4):
@@ -78,7 +76,8 @@ def main(args):
         mini_batch_size=args.mini_batch_size,
         exp_name=args.exp_name,
         seed=args.seed,
-        accelerator_kwargs={"mixed_precision": "bf16"}
+        accelerator_kwargs={"mixed_precision": "bf16"},
+        tracker_project_name="lm_feedback_ppo",
     )
 
     model = AutoModelForCausalLMWithValueHead.from_pretrained(args.policy_model)
