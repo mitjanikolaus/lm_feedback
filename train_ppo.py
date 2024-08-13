@@ -26,8 +26,6 @@ CKPT_DIR = "ckpts_trl"
 
 
 def build_policy_trainer_dataset(tokenizer, query_data_path, input_min_text_length=1, input_max_text_length=4):
-    assert tokenizer.pad_token == tokenizer.eos_token
-
     data_queries = pd.read_csv(query_data_path)
     # data_fb = data_fb.iloc[:1000]
 
@@ -93,8 +91,6 @@ def main(args):
 
     ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(args.policy_model)
 
-    tokenizer.pad_token = tokenizer.eos_token
-
     ppo_trainer = PPOTrainer(config, model, ref_model, tokenizer, dataset=dataset, data_collator=collator)
 
     value_model = AutoModelForSequenceClassification.from_pretrained(args.value_model)
@@ -109,7 +105,7 @@ def main(args):
         "top_k": 0.0,
         "top_p": args.generation_top_p,
         "do_sample": True,
-        "pad_token_id": tokenizer.eos_token_id,
+        "pad_token_id": tokenizer.pad_token_id,
     }
 
     for epoch, batch in enumerate(tqdm(ppo_trainer.dataloader)):
