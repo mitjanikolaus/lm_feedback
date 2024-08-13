@@ -27,7 +27,7 @@ from trl import RewardConfig, ModelConfig, \
 
 
 os.environ["WANDB_PROJECT"] = "lm_feedback_reward_model"
-os.environ["WANDB_LOG_MODEL"] = False
+os.environ["WANDB_LOG_MODEL"] = "false"
 
 TEST_SET_SIZE = 0.1
 SPLIT_RANDOM_STATE = 1
