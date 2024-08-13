@@ -7,13 +7,11 @@ import torch
 from tqdm import tqdm
 import pandas as pd
 
-from data import compute_reward_value, FeedbackDataset, PAD_TOKEN
-from model import ChildesGPT
 from utils import CHILDES_RL_DATA_FILE
 
 tqdm.pandas()
 
-from transformers import pipeline, AutoTokenizer, GPT2TokenizerFast, AutoModelForSequenceClassification
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from datasets import Dataset
 
 from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
