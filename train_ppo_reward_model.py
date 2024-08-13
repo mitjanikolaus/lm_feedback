@@ -112,8 +112,8 @@ class CFRewardTrainer(RewardTrainer):
         )
 
     def evaluate(self, *args, **kwargs):
-        # num_print_samples = kwargs.pop("num_print_samples", 10)
-        # self.visualize_samples(num_print_samples)
+        num_print_samples = kwargs.pop("num_print_samples", 10)
+        self.visualize_samples(num_print_samples)
         return super(RewardTrainer, self).evaluate(*args, **kwargs)
 
     def prediction_step(
@@ -140,7 +140,7 @@ class CFRewardTrainer(RewardTrainer):
 
         return loss, logits, labels
 
-    def visualize_samples(self, num_print_samples: int):
+    def visualize_samples(self, num_print_samples: int, table_name="completions"):
         """
         Visualize the reward model logits prediction
 
@@ -148,24 +148,23 @@ class CFRewardTrainer(RewardTrainer):
             num_print_samples (`int`, defaults to `10`):
                 The number of samples to print. Set to `-1` to print all samples.
         """
-        eval_dataloader = self.get_eval_dataloader()
-        table = defaultdict(list)
-        for _, inputs in enumerate(eval_dataloader):
-            _, logits, _ = self.prediction_step(self.model, inputs, prediction_loss_only=False)
-            text = self.tokenizer.batch_decode(inputs["input_ids"], skip_special_tokens=True)
-            table["text"].extend(gather_object(text))
-            table["reward"].extend(gather_object(inputs["reward"].cpu()))
-            table["logits"].extend(gather_object(logits.squeeze().cpu()))
-            if num_print_samples >= 0 and len(table["text"]) >= num_print_samples:
-                break
-        df = pd.DataFrame(table)
         if self.accelerator.process_index == 0:
+            eval_dataloader = self.get_eval_dataloader()
+            table = defaultdict(list)
+            for _, inputs in enumerate(eval_dataloader):
+                _, logits, _ = self.prediction_step(self.model, inputs, prediction_loss_only=False)
+                text = self.tokenizer.batch_decode(inputs["input_ids"], skip_special_tokens=True)
+                table["text"].extend(gather_object(text))
+                table["reward"].extend(gather_object(inputs["reward"].cpu()))
+                table["logits"].extend(gather_object(logits.squeeze().cpu()))
+                if num_print_samples >= 0 and len(table["text"]) >= num_print_samples:
+                    break
+            df = pd.DataFrame(table)
+
             print_rich_table(df[:num_print_samples])
             if "wandb" in self.args.report_to:
-                import wandb
-
-                if wandb.run is not None:
-                    wandb.log({f"completions": wandb.Table(dataframe=df)})
+                print("logging completions table of size ", len(df))
+                self._wandb.log({table_name: self._wandb.Table(dataframe=df)})
 
     def compute_loss(
         self,
@@ -303,7 +302,7 @@ def main():
 
     trainer._load_best_model()
 
-    trainer.model.visualize_samples(100)
+    trainer.model.visualize_samples(100, table_name="best_model_completions")
 
     metrics = trainer.evaluate()
     trainer.log_metrics("eval", metrics)
