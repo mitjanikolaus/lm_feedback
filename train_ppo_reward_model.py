@@ -213,7 +213,7 @@ def main():
     trainer_config_args = RewardConfig
     reward_config_fields = trainer_config_args.__dataclass_fields__
     reward_config_fields["bf16"].default = True
-    reward_config_fields["per_device_train_batch_size"].default = 64
+    reward_config_fields["per_device_train_batch_size"].default = 128
     reward_config_fields["per_device_eval_batch_size"].default = 1024
     reward_config_fields["logging_steps"].default = 10
     reward_config_fields["num_train_epochs"].default = 1
