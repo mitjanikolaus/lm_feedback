@@ -15,6 +15,8 @@ from lm_eval import evaluator
 
 from model import ChildesGPT
 
+os.environ["WANDB_PROJECT"] = "lm_feedback_baseline"
+
 MODEL_BABYLLAMA = "babyllama"
 MODEL_GPT2 = "gpt2"
 MODELS_CAUSAL = [MODEL_BABYLLAMA, MODEL_GPT2]

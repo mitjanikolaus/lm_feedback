@@ -1,3 +1,4 @@
+import os
 import warnings
 from collections import defaultdict
 from dataclasses import dataclass
@@ -24,6 +25,8 @@ from datasets import Dataset, DatasetDict
 from trl import RewardConfig, ModelConfig, \
     get_quantization_config, get_kbit_device_map, RewardTrainer, get_peft_config
 
+
+os.environ["WANDB_PROJECT"] = "lm_feedback_reward_model"
 
 TEST_SET_SIZE = 0.1
 SPLIT_RANDOM_STATE = 1

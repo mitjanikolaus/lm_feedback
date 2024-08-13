@@ -18,6 +18,7 @@ from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
 from trl.core import LengthSampler
 from lm_eval import evaluator
 
+os.environ["WANDB_PROJECT"] = "lm_feedback_ppo"
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
