@@ -1,31 +1,136 @@
 import argparse
 import os
+import typing
 import warnings
+from typing import Optional, Union, List
 
 import torch
 from tqdm import tqdm
 import pandas as pd
+from trl.models.utils import unwrap_model_for_generation
 
 from utils import CHILDES_LM_DATA_FILE
 
 tqdm.pandas()
 
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, PreTrainedTokenizerBase
 from datasets import Dataset
 
-from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
+from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead, PreTrainedModelWrapper
 from trl.core import LengthSampler
 from lm_eval import evaluator
-
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 CKPT_DIR = "ckpts_ppo"
 
 
-def build_policy_trainer_dataset(tokenizer, query_data_path, input_min_text_length=1, input_max_text_length=4):
+class ChildesPPOTrainer(PPOTrainer):
+    def __init__(
+            self,
+            config: Optional[PPOConfig] = None,
+            model: Optional[PreTrainedModelWrapper] = None,
+            ref_model: Optional[PreTrainedModelWrapper] = None,
+            tokenizer: Optional[PreTrainedTokenizerBase] = None,
+            dataset: Optional[Union[torch.utils.data.Dataset, Dataset]] = None,
+            optimizer: Optional[torch.optim.Optimizer] = None,
+            data_collator: Optional[typing.Callable] = None,
+            num_shared_layers: Optional[int] = None,
+            lr_scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+            training_data_collator: Optional[typing.Callable] = None,
+    ):
+        super(ChildesPPOTrainer, self).__init__(config, model, ref_model, tokenizer, dataset, optimizer, data_collator,
+                                                num_shared_layers, lr_scheduler, training_data_collator)
+
+    def generate(
+        self,
+        query_tensor: Optional[Union[torch.Tensor, typing.List[torch.Tensor]]] = None,
+        length_sampler: Optional[typing.Callable] = None,
+        batch_size: int = 4,
+        return_prompt: bool = True,
+        generate_ref_response: bool = False,
+        **generation_kwargs,
+    ):
+        """
+        Generate response with the model given the query tensor.
+        call the `generate` method of the model.
+
+        Args:
+            query_tensor (`torch.LongTensor`):
+                A tensor of shape (`seq_len`) containing query tokens or a list of tensors of shape (`seq_len`).
+            length_sampler (`Callable`, *optional*):
+                Callable that returns the number of newly generated tokens.
+            batch_size (`int`, *optional):
+                Batch size used for generation, defaults to `4`.
+            return_prompt (`bool`, *optional*):
+                If set to `False` the prompt is not returned but only the newly generated tokens, defaults to `True`.
+            generate_ref_response (`bool`, *optional*):
+                If set to `True` the reference response is also generated, defaults to `False`.
+            generation_kwargs (dict[str, Any]):
+                Keyword arguments for generation.
+
+        Returns:
+            `torch.LongTensor`: A tensor of shape (`batch_size`, `gen_len`) containing response tokens.
+        """
+        if generate_ref_response:
+            ref_model = self.model if self.is_peft_model else self.ref_model
+        if isinstance(query_tensor, List):
+            response = self._generate_batched(
+                self.model,
+                query_tensor,
+                length_sampler=length_sampler,
+                batch_size=batch_size,
+                return_prompt=return_prompt,
+                **generation_kwargs,
+            )
+            if generate_ref_response:
+                ref_response = self._generate_batched(
+                    ref_model,
+                    query_tensor,
+                    length_sampler=length_sampler,
+                    batch_size=batch_size,
+                    return_prompt=return_prompt,
+                    **generation_kwargs,
+                )
+
+        else:
+            if query_tensor is None:
+                # No query given
+                with unwrap_model_for_generation(self.model, self.accelerator) as unwrapped_model:
+                    response = unwrapped_model.generate(**generation_kwargs)
+            else:
+                if len(query_tensor.shape) == 2:
+                    raise ValueError(
+                        "query_tensor must be a tensor of shape (`seq_len`) or a list of tensors of shape (`seq_len`)"
+                    )
+
+                if length_sampler is not None:
+                    generation_kwargs["max_new_tokens"] = length_sampler()
+
+                with unwrap_model_for_generation(self.model, self.accelerator) as unwrapped_model:
+                    response = unwrapped_model.generate(input_ids=query_tensor.unsqueeze(dim=0), **generation_kwargs)
+
+            if generate_ref_response:
+                with unwrap_model_for_generation(
+                    ref_model, self.accelerator, is_peft_model=self.is_peft_model
+                ) as unwrapped_model:
+                    ref_response = unwrapped_model.generate(
+                        input_ids=query_tensor.unsqueeze(dim=0), **generation_kwargs
+                    )
+
+            if not return_prompt and not self.is_encoder_decoder:
+                response = response[:, query_tensor.shape[0] :]
+                if generate_ref_response:
+                    ref_response = ref_response[:, query_tensor.shape[0] :]
+
+        if generate_ref_response:
+            return response, ref_response
+        return response
+
+
+def build_policy_trainer_dataset(tokenizer, query_data_path, min_length=1, max_length=4):
     data_queries = pd.read_csv(query_data_path)
-    # data_fb = data_fb.iloc[:1000]
+    # data_queries = data_queries.iloc[:1000]
 
     if "utt_transcript_clean" in data_queries.columns:
         data_queries["transcript_clean"] = data_queries["utt_transcript_clean"]
@@ -35,10 +140,9 @@ def build_policy_trainer_dataset(tokenizer, query_data_path, input_min_text_leng
 
     ds = Dataset.from_pandas(data_queries)
 
-
     ds = ds.filter(lambda x: len(x["transcript_clean"]) > 10, batched=False)
 
-    input_size = LengthSampler(input_min_text_length, input_max_text_length)
+    input_size = LengthSampler(min_length, max_length)
 
     def tokenize(sample):
         sample["input_ids"] = tokenizer.encode(sample["transcript_clean"])[: input_size()]
@@ -83,14 +187,18 @@ def main(args):
     model = AutoModelForCausalLMWithValueHead.from_pretrained(args.policy_model)
     tokenizer = AutoTokenizer.from_pretrained(args.policy_model)
 
-    dataset = build_policy_trainer_dataset(tokenizer, query_data_path=args.query_data_path)
+    if args.query_max_length > 0:
+        dataset = build_policy_trainer_dataset(tokenizer, query_data_path=args.query_data_path,
+                                               min_length=args.query_min_length, max_length=args.query_max_length)
+    else:
+        dataset = None
 
     def collator(data):
         return dict((key, [d[key] for d in data]) for key in data[0])
 
     ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(args.policy_model)
 
-    ppo_trainer = PPOTrainer(config, model, ref_model, tokenizer, dataset=dataset, data_collator=collator)
+    ppo_trainer = ChildesPPOTrainer(config, model, ref_model, tokenizer, dataset=dataset, data_collator=collator)
 
     value_model = AutoModelForSequenceClassification.from_pretrained(args.value_model)
     value_model_tokenizer = AutoTokenizer.from_pretrained(args.value_model)
@@ -107,35 +215,74 @@ def main(args):
         "pad_token_id": tokenizer.pad_token_id,
     }
 
-    for epoch, batch in enumerate(tqdm(ppo_trainer.dataloader)):
-        query_tensors = batch["input_ids"]
+    if args.query_max_length > 0:
+        for epoch, batch in enumerate(tqdm(ppo_trainer.dataloader)):
+            query_tensors = batch["input_ids"]
 
-        #### Get completion from gpt2
-        response_tensors = []
-        for query in query_tensors:
-            gen_len = output_length_sampler()
-            generation_kwargs["max_new_tokens"] = gen_len
-            response = ppo_trainer.generate(query, **generation_kwargs)
-            response_tensors.append(response.squeeze()[-gen_len:])
-        batch["response"] = [tokenizer.decode(r.squeeze()) for r in response_tensors]
+            #### Get completion from gpt2
+            response_tensors = []
+            for query in query_tensors:
+                gen_len = output_length_sampler()
+                generation_kwargs["max_new_tokens"] = gen_len
+                response = ppo_trainer.generate(query, **generation_kwargs)
+                response_tensors.append(response.squeeze()[-gen_len:])
+            batch["response"] = [tokenizer.decode(r.squeeze()) for r in response_tensors]
 
-        #### Compute reward
-        texts = [q + r for q, r in zip(batch["query"], batch["response"])]
-        texts_encoded = value_model_tokenizer(texts, padding=True, truncation=True, return_tensors="pt", max_length=output_max_length+10)
-        value_model_outputs = value_model(**texts_encoded)
-        rewards = value_model_outputs.logits.squeeze()
-        rewards = [torch.tensor(r.item()) for r in rewards]
+            #### Compute reward
+            texts = [q + r for q, r in zip(batch["query"], batch["response"])]
+            texts_encoded = value_model_tokenizer(texts, padding=True, truncation=True, return_tensors="pt",
+                                                  max_length=output_max_length + 10)
+            value_model_outputs = value_model(**texts_encoded)
+            rewards = value_model_outputs.logits.squeeze()
+            rewards = [torch.tensor(r.item()) for r in rewards]
 
-        #### Run PPO step
-        stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
-        ppo_trainer.log_stats(stats, batch, rewards)
+            #### Run PPO step
+            stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
+            ppo_trainer.log_stats(stats, batch, rewards)
 
-        if epoch % 25 == 0:
-            model.save_pretrained(os.path.join(CKPT_DIR, args.exp_name))
-            tokenizer.save_pretrained(os.path.join(CKPT_DIR, args.exp_name))
+            if epoch % 25 == 0:
+                model.save_pretrained(os.path.join(CKPT_DIR, args.exp_name))
+                tokenizer.save_pretrained(os.path.join(CKPT_DIR, args.exp_name))
 
-            eval_babylm(model="hf", model_args=f"pretrained={os.path.join(CKPT_DIR, args.exp_name)}", tasks=["zorro", "blimp_filtered"],
-                        ppo_trainer=ppo_trainer, device=ppo_trainer.accelerator.device.index)
+                eval_babylm(model="hf", model_args=f"pretrained={os.path.join(CKPT_DIR, args.exp_name)}",
+                            tasks=["zorro", "blimp_filtered"],
+                            ppo_trainer=ppo_trainer, device=ppo_trainer.accelerator.device.index)
+    else:
+        for step in tqdm(range(config.steps)):
+            #### Get completion from gpt2
+            response_tensors = []
+
+            batch = dict()
+            query_tensors = []
+            for i in range(args.batch_size):
+                gen_len = output_length_sampler()
+                generation_kwargs["max_new_tokens"] = gen_len
+                response = ppo_trainer.generate(**generation_kwargs)
+                response_tensors.append(response.squeeze()[-gen_len:])
+                query_tensors.append(response.squeeze()[:-gen_len])
+
+            batch["response"] = [tokenizer.decode(r.squeeze()) for r in response_tensors]
+
+            #### Compute reward
+            texts = batch["response"]
+            texts_encoded = value_model_tokenizer(texts, padding=True, truncation=True, return_tensors="pt",
+                                                  max_length=output_max_length + 10)
+            value_model_outputs = value_model(**texts_encoded)
+            rewards = value_model_outputs.logits.squeeze()
+            rewards = [torch.tensor(r.item()) for r in rewards]
+
+            #### Run PPO step
+            stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
+            ppo_trainer.log_stats(stats, batch, rewards)
+
+            if step % 25 == 0:
+                model.save_pretrained(os.path.join(CKPT_DIR, args.exp_name))
+                tokenizer.save_pretrained(os.path.join(CKPT_DIR, args.exp_name))
+
+                eval_babylm(model="hf", model_args=f"pretrained={os.path.join(CKPT_DIR, args.exp_name)}",
+                            tasks=["zorro", "blimp_filtered"],
+                            ppo_trainer=ppo_trainer, device=ppo_trainer.accelerator.device.index)
+
 
 def parse_args():
     argparser = argparse.ArgumentParser()
@@ -151,6 +298,16 @@ def parse_args():
         "--query_data_path",
         type=str,
         default=CHILDES_LM_DATA_FILE
+    )
+    argparser.add_argument(
+        "--query_min_length",
+        type=int,
+        default=1
+    )
+    argparser.add_argument(
+        "--query_max_length",
+        type=int,
+        default=4
     )
     argparser.add_argument(
         "--log_with",
