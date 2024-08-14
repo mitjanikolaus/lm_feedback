@@ -273,6 +273,7 @@ def main(args):
 
             #### Run PPO step
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
+            batch["query"] = [""] * args.batch_size
             ppo_trainer.log_stats(stats, batch, rewards)
 
             if step % 25 == 0:
