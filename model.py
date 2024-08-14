@@ -249,7 +249,7 @@ class ChildesGPT(GPT2LMHeadModel, TemplateLM):
         raise NotImplementedError()
 
     def tok_encode(
-        self, string: str, left_truncate_len=None, add_special_tokens=False
+        self, string: str, left_truncate_len=None, add_special_tokens=True
     ) -> List[int]:
         """ """
         special_tokens_kwargs = {"add_special_tokens": add_special_tokens}
