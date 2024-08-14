@@ -1,22 +1,19 @@
 import argparse
 import os
-import typing
 import warnings
-from typing import Optional, Union, List
 
 import torch
 from tqdm import tqdm
 import pandas as pd
-from trl.models.utils import unwrap_model_for_generation
 
 from utils import CHILDES_LM_DATA_FILE
 
 tqdm.pandas()
 
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, PreTrainedTokenizerBase
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from datasets import Dataset
 
-from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead, PreTrainedModelWrapper
+from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
 from trl.core import LengthSampler
 from lm_eval import evaluator
 
@@ -206,8 +203,8 @@ def build_policy_trainer_dataset(tokenizer, query_data_path, min_length=1, max_l
     input_size = LengthSampler(min_length, max_length)
 
     def tokenize(sample):
-        sample["input_ids"] = tokenizer.encode(sample["transcript_clean"])[: input_size()]
-        sample["query"] = tokenizer.decode(sample["input_ids"])
+        sample["input_ids"] = tokenizer.encode(sample["transcript_clean"])[: input_size()+1]
+        sample["query"] = tokenizer.decode(sample["input_ids"], skip_special_tokens=True)
         return sample
 
     ds = ds.map(tokenize, batched=False, num_proc=10)
