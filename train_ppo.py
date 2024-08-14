@@ -240,7 +240,7 @@ def main(args):
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
             ppo_trainer.log_stats(stats, batch, rewards)
 
-            if epoch % 25 == 0:
+            if epoch % args.eval_freq == 0:
                 model.save_pretrained(os.path.join(CKPT_DIR, args.exp_name))
                 tokenizer.save_pretrained(os.path.join(CKPT_DIR, args.exp_name))
 
@@ -276,7 +276,7 @@ def main(args):
             batch["query"] = [""] * args.batch_size
             ppo_trainer.log_stats(stats, batch, rewards)
 
-            if step % 25 == 0:
+            if step % args.eval_freq == 0:
                 model.save_pretrained(os.path.join(CKPT_DIR, args.exp_name))
                 tokenizer.save_pretrained(os.path.join(CKPT_DIR, args.exp_name))
 
@@ -344,6 +344,11 @@ def parse_args():
         "--learning_rate",
         type=float,
         default=1.41e-5,
+    )
+    argparser.add_argument(
+        "--eval_freq",
+        type=int,
+        default=25,
     )
 
     args = argparser.parse_args()
