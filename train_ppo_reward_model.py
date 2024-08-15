@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Optional, Union, Callable, List, Dict, Tuple, Any
 
 import torch
+import wandb
 from sklearn.model_selection import train_test_split
 from torch import nn
 from tqdm import tqdm
@@ -266,6 +267,11 @@ def main():
 
     trainer_config, model_config = parser.parse_args_into_dataclasses()
     trainer_config.gradient_checkpointing_kwargs = dict(use_reentrant=False)
+
+    wandb.init(
+        name=trainer_config.run_name,
+        config=parser.parse_args(),
+    )
 
     ################
     # Model & Tokenizer
