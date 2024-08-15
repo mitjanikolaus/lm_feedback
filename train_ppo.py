@@ -233,6 +233,7 @@ def main(args):
     if args.log_with == "wandb":
         wandb.init(
             name=args.exp_name,
+            project="lm_feedback_ppo",
             config=args,
         )
 

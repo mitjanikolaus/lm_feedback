@@ -27,7 +27,6 @@ from trl import RewardConfig, ModelConfig, \
     get_quantization_config, get_kbit_device_map, RewardTrainer, get_peft_config
 
 
-os.environ["WANDB_PROJECT"] = "lm_feedback_reward_model"
 os.environ["WANDB_LOG_MODEL"] = "false"
 
 TEST_SET_SIZE = 0.1
@@ -270,6 +269,7 @@ def main():
 
     wandb.init(
         name=trainer_config.run_name,
+        project="lm_feedback_reward_model",
         config=parser.parse_args(),
     )
 
