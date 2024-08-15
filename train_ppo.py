@@ -244,6 +244,7 @@ def main(args):
         batch_size=args.batch_size,
         mini_batch_size=args.mini_batch_size,
         seed=args.seed,
+        target=args.target_kl,
         accelerator_kwargs={"mixed_precision": "bf16"},
         tracker_project_name="lm_feedback_ppo",
     )
@@ -417,6 +418,11 @@ def parse_args():
         "--eval_freq",
         type=int,
         default=50,
+    )
+    argparser.add_argument(
+        "--target_kl",
+        type=int,
+        default=6,
     )
 
     args = argparser.parse_args()
