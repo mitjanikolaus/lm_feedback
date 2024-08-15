@@ -236,8 +236,8 @@ def main():
     trainer_config_args = RewardConfig
     reward_config_fields = trainer_config_args.__dataclass_fields__
     reward_config_fields["bf16"].default = True
-    reward_config_fields["per_device_train_batch_size"].default = 64
-    reward_config_fields["per_device_eval_batch_size"].default = 64
+    reward_config_fields["per_device_train_batch_size"].default = 32
+    reward_config_fields["per_device_eval_batch_size"].default = 32
     reward_config_fields["logging_steps"].default = 1
     reward_config_fields["num_train_epochs"].default = 10
     reward_config_fields["learning_rate"].default = 1.41e-5
@@ -248,10 +248,10 @@ def main():
     reward_config_fields["metric_for_best_model"].default = "acc"
     reward_config_fields["greater_is_better"].default = True
     reward_config_fields["save_total_limit"].default = 1
-    reward_config_fields["save_steps"].default = 1
+    reward_config_fields["save_steps"].default = 5
     reward_config_fields["save_only_model"].default = True
     reward_config_fields["eval_strategy"].default = "steps"
-    reward_config_fields["eval_steps"].default = 1
+    reward_config_fields["eval_steps"].default = 5
     reward_config_fields["eval_on_start"].default = True
 
     model_config_args = ModelConfig
