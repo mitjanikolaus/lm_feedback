@@ -239,7 +239,7 @@ def main():
     reward_config_fields["per_device_train_batch_size"].default = 32
     reward_config_fields["per_device_eval_batch_size"].default = 32
     reward_config_fields["logging_steps"].default = 1
-    reward_config_fields["num_train_epochs"].default = 10
+    reward_config_fields["num_train_epochs"].default = 20
     reward_config_fields["learning_rate"].default = 1.41e-5
     reward_config_fields["optim"].default = "adamw_torch"
     reward_config_fields["max_length"].default = 256
