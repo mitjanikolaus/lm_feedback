@@ -248,10 +248,10 @@ def main():
     reward_config_fields["metric_for_best_model"].default = "acc"
     reward_config_fields["greater_is_better"].default = True
     reward_config_fields["save_total_limit"].default = 1
-    reward_config_fields["save_steps"].default = 50
+    reward_config_fields["save_steps"].default = 1
     reward_config_fields["save_only_model"].default = True
     reward_config_fields["eval_strategy"].default = "steps"
-    reward_config_fields["eval_steps"].default = 50
+    reward_config_fields["eval_steps"].default = 1
     reward_config_fields["eval_on_start"].default = True
 
     model_config_args = ModelConfig
