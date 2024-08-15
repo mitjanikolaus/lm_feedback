@@ -57,13 +57,15 @@ DATA_NAMES = [DATA_FILE_CHILDES, DATA_FILE_BNC, DATA_FILE_GUTENBERG, DATA_FILE_O
 
 class ChildesDataModule(LightningDataModule):
     def __init__(self, lm_data_path=CHILDES_LM_DATA_FILE, fb=False, fb_data_path=CHILDES_RL_DATA_FILE, vocab_size=10000,
-                 max_len=128, batch_size=128, num_workers=4, causal=True, capitalize_bos=False):
+                 max_len=128, batch_size=128, num_workers=4, causal=True, capitalize_bos=False, max_num_words=None):
         super().__init__()
         self.vocab_size = vocab_size
         self.batch_size = batch_size
         self.max_len = max_len
         self.num_workers = num_workers
         self.fb = fb
+
+        self.save_hyperparameters()
 
         tokenizer_dir = os.path.join("tokenizers", f"childes_vocab_{vocab_size}")
         os.makedirs(tokenizer_dir, exist_ok=True)
@@ -82,6 +84,16 @@ class ChildesDataModule(LightningDataModule):
         self.tokenizer = GPT2TokenizerFast.from_pretrained(
             tokenizer_dir, return_token_type_ids=False, add_prefix_space=True, pad_token=PAD_TOKEN, add_bos_token=True, bos_token=SEQUENCE_START_TOKEN,
         )
+
+        if max_num_words is not None:
+            num_words = 0
+            target_index = 0
+            for target_index, sent in enumerate(data_train):
+                num_words += len(sent.split(" "))
+                if num_words >= max_num_words:
+                    break
+
+            data_train = data_train[:target_index-1]
 
         self.dataset_dev = ChildesLMDataset(data_dev, tokenizer=self.tokenizer, max_len=max_len)
         self.dataset_train = ChildesLMDataset(data_train, tokenizer=self.tokenizer, max_len=max_len)
