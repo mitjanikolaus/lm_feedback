@@ -292,7 +292,7 @@ def main():
     raw_datasets = build_cf_classifier_datasets(args.train_data_path, args.test_data_path, args.target_column)
 
     def preprocess_function(samples):
-        texts = [utt + " " + resp for utt, resp in zip(samples["utt_transcript_clean"], samples["response_transcript_clean"])]
+        texts = [utt + tokenizer.sep_token + resp for utt, resp in zip(samples["utt_transcript_clean"], samples["response_transcript_clean"])]
         tokenized = tokenizer(texts, truncation=True, max_length=trainer_config.max_length)
         tokenized[args.target_column] = samples[args.target_column]
 
@@ -302,7 +302,6 @@ def main():
     raw_datasets = raw_datasets.map(
         preprocess_function,
         batched=True,
-        num_proc=4
     )
     train_dataset = raw_datasets["train"]
     eval_dataset = raw_datasets["test"]
