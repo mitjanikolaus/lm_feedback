@@ -3,12 +3,11 @@ import os
 import warnings
 
 import torch
+import wandb
 from tqdm import tqdm
 import pandas as pd
 
 from utils import CHILDES_LM_DATA_FILE
-
-tqdm.pandas()
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from datasets import Dataset
@@ -17,6 +16,7 @@ from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
 from trl.core import LengthSampler
 from lm_eval import evaluator
 
+tqdm.pandas()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 CKPT_DIR = "ckpts_ppo"
@@ -230,6 +230,12 @@ def eval_babylm(model, model_args, tasks, ppo_trainer, device, eval_batch_size=1
 
 
 def main(args):
+    if args.log_with == "wandb":
+        wandb.init(
+            name=args.exp_name,
+            config=args,
+        )
+
     config = PPOConfig(
         model_name="childes-gpt",
         learning_rate=args.learning_rate,
@@ -239,7 +245,6 @@ def main(args):
         seed=args.seed,
         accelerator_kwargs={"mixed_precision": "bf16"},
         tracker_project_name="lm_feedback_ppo",
-        tracker_kwargs={"wandb": {"name": args.exp_name}}
     )
 
     model = AutoModelForCausalLMWithValueHead.from_pretrained(args.policy_model)
