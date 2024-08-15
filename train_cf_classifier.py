@@ -119,7 +119,7 @@ class WandbPredictionProgressCallback(WandbCallback):
             predictions = self.trainer.predict(self.sample_dataset)
 
             table = defaultdict(list)
-            table["text"] = self.sample_dataset["utt_transcript_clean"]
+            table["text"] = [utt + " " + resp for utt, resp in zip(self.sample_dataset["utt_transcript_clean"], self.sample_dataset["response_transcript_clean"])]
             table[self.target_column] = self.sample_dataset[self.target_column].cpu()
             table["prediction"] = predictions.predictions.squeeze()
 
