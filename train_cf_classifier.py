@@ -198,8 +198,7 @@ class CFClassifierTrainer(RewardTrainer):
         )["logits"]
 
         targets = inputs[self.target_column].to(torch.float)
-        output = F.sigmoid(logits.squeeze())
-        loss = nn.functional.binary_cross_entropy_with_logits(output, target=targets)
+        loss = nn.functional.binary_cross_entropy_with_logits(logits.squeeze(), target=targets)
 
         if return_outputs:
             return loss, {
