@@ -347,6 +347,7 @@ def main(args):
             texts_encoded = value_model_tokenizer(texts, padding=True, return_tensors="pt")
             value_model_outputs = value_model(**texts_encoded)
             rewards = value_model_outputs.logits.squeeze()
+            rewards = F.sigmoid(rewards)
             rewards = [torch.tensor(r.item()) for r in rewards]
 
             #### Run PPO step
