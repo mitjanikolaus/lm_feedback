@@ -1,3 +1,4 @@
+import glob
 import os
 import warnings
 from collections import defaultdict
@@ -130,7 +131,7 @@ class WandbPredictionProgressCallback(WandbCallback):
             predictions = self.trainer.predict(self.sample_dataset)
 
             table = defaultdict(list)
-            table["text"] = self.sample_dataset["utt_transcript_clean"]#self.tokenizer.batch_decode(inputs["input_ids"], skip_special_tokens=True)
+            table["text"] = self.sample_dataset["transcript_clean"]#self.tokenizer.batch_decode(inputs["input_ids"], skip_special_tokens=True)
             table["reward"] = self.sample_dataset["reward"].cpu()
             table["logits"] = predictions.predictions.squeeze()
 
@@ -217,13 +218,28 @@ class CFRewardTrainer(RewardTrainer):
         return loss
 
 
-def build_reward_model_trainer_datasets(fb_data_path=CHILDES_RL_DATA_FILE):
-    data_fb = pd.read_csv(fb_data_path)
-    data_fb["reward"] = data_fb.apply(compute_reward_value, axis=1)
-    del data_fb["response_is_clarification_request"]
-    del data_fb["response_is_acknowledgement"]
+def build_reward_model_trainer_datasets(fb_data_path):
+    if os.path.isfile(fb_data_path):
+        data = pd.read_csv(fb_data_path)
+    else:
+        data = []
+        for filename in glob.glob(fb_data_path+"/*.csv"):
+            data.append(pd.read_csv(os.path.join(fb_data_path, filename)))
+        data = pd.concat(data, ignore_index=True)
 
-    data_train, data_test = train_test_split(data_fb, test_size=TEST_SET_SIZE, shuffle=True,
+    if "response_is_clarification_request" in data.columns and "response_is_acknowledgement" in data.columns:
+        print("Building reward model dataset based on CR and ACK data")
+        data["reward"] = data.apply(compute_reward_value, axis=1)
+        data["transcript_clean"] = data["utt_transcript_clean"]
+    elif "is_grammatical" in data.columns:
+        print("Building reward model dataset based on grammaticality")
+        data.dropna(subset=["is_grammatical"], inplace=True)
+        data["reward"] = data["is_grammatical"].apply(lambda x: (x+1) / 2)  # map to values 0, 0.5, 1
+    else:
+        raise RuntimeError("Unknown data format in ", fb_data_path)
+
+    data = data[["transcript_clean", "reward"]]
+    data_train, data_test = train_test_split(data, test_size=TEST_SET_SIZE, shuffle=True,
                                             random_state=SPLIT_RANDOM_STATE)
 
     ds_train = Dataset.from_pandas(data_train)
@@ -236,27 +252,32 @@ def build_reward_model_trainer_datasets(fb_data_path=CHILDES_RL_DATA_FILE):
     return datasets
 
 
+@dataclass
+class CFRewardTrainerConfig(RewardConfig):
+    data_path: str = CHILDES_RL_DATA_FILE
+
+
 def main():
-    trainer_config_args = RewardConfig
-    reward_config_fields = trainer_config_args.__dataclass_fields__
-    reward_config_fields["bf16"].default = True
-    reward_config_fields["per_device_train_batch_size"].default = 128
-    reward_config_fields["per_device_eval_batch_size"].default = 1024
-    reward_config_fields["logging_steps"].default = 10
-    reward_config_fields["num_train_epochs"].default = 1
-    reward_config_fields["learning_rate"].default = 1.41e-5
-    reward_config_fields["optim"].default = "adamw_torch"
-    reward_config_fields["max_length"].default = 128
-    reward_config_fields["remove_unused_columns"].default = False
-    reward_config_fields["load_best_model_at_end"].default = True
-    reward_config_fields["metric_for_best_model"].default = "mse"
-    reward_config_fields["greater_is_better"].default = False
-    reward_config_fields["save_total_limit"].default = 1
-    reward_config_fields["save_steps"].default = 50
-    reward_config_fields["save_only_model"].default = True
-    reward_config_fields["eval_strategy"].default = "steps"
-    reward_config_fields["eval_steps"].default = 50
-    reward_config_fields["eval_on_start"].default = True
+    trainer_config_args = CFRewardTrainerConfig
+    trainer_config_fields = trainer_config_args.__dataclass_fields__
+    trainer_config_fields["bf16"].default = True
+    trainer_config_fields["per_device_train_batch_size"].default = 128
+    trainer_config_fields["per_device_eval_batch_size"].default = 1024
+    trainer_config_fields["logging_steps"].default = 10
+    trainer_config_fields["num_train_epochs"].default = 1
+    trainer_config_fields["learning_rate"].default = 1.41e-5
+    trainer_config_fields["optim"].default = "adamw_torch"
+    trainer_config_fields["max_length"].default = 128
+    trainer_config_fields["remove_unused_columns"].default = False
+    trainer_config_fields["load_best_model_at_end"].default = True
+    trainer_config_fields["metric_for_best_model"].default = "mse"
+    trainer_config_fields["greater_is_better"].default = False
+    trainer_config_fields["save_total_limit"].default = 1
+    trainer_config_fields["save_steps"].default = 50
+    trainer_config_fields["save_only_model"].default = True
+    trainer_config_fields["eval_strategy"].default = "steps"
+    trainer_config_fields["eval_steps"].default = 50
+    trainer_config_fields["eval_on_start"].default = True
 
     model_config_args = ModelConfig
     model_config_fields = model_config_args.__dataclass_fields__
@@ -276,11 +297,6 @@ def main():
     ################
     # Model & Tokenizer
     ################
-    torch_dtype = (
-        model_config.torch_dtype
-        if model_config.torch_dtype in ["auto", None]
-        else getattr(torch, model_config.torch_dtype)
-    )
     quantization_config = get_quantization_config(model_config)
     model_kwargs = dict(
         revision=model_config.model_revision,
@@ -303,10 +319,10 @@ def main():
     ################
     # Dataset
     ################
-    raw_datasets = build_reward_model_trainer_datasets()
+    raw_datasets = build_reward_model_trainer_datasets(trainer_config.data_path)
 
     def preprocess_function(sample):
-        tokenized = tokenizer(sample["utt_transcript_clean"], truncation=True, max_length=trainer_config.max_length)
+        tokenized = tokenizer(sample["transcript_clean"], truncation=True, max_length=trainer_config.max_length)
         tokenized["reward"] = sample["reward"]
 
         return tokenized
