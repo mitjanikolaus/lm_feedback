@@ -203,7 +203,7 @@ def build_policy_trainer_dataset(tokenizer, query_data_path, min_length=1, max_l
     input_size = LengthSampler(min_length, max_length)
 
     def tokenize(sample):
-        sample["input_ids"] = tokenizer.encode(sample["transcript_clean"])[: input_size()+1]
+        sample["input_ids"] = tokenizer.encode(sample["transcript_clean"])[: input_size()+2]
         sample["query"] = tokenizer.decode(sample["input_ids"], skip_special_tokens=True)
         return sample
 
@@ -278,13 +278,14 @@ def main(args):
         "top_p": args.generation_top_p,
         "do_sample": True,
         "pad_token_id": tokenizer.pad_token_id,
+        "eos_token_id": tokenizer.eos_token_id,
     }
 
     def eval_babylm_metrics():
         model.save_pretrained(os.path.join(CKPT_DIR, args.exp_name))
         tokenizer.save_pretrained(os.path.join(CKPT_DIR, args.exp_name))
 
-        eval_babylm(model="hf", model_args=f"pretrained={os.path.join(CKPT_DIR, args.exp_name)},add_bos_token=True",
+        eval_babylm(model="hf", model_args=f"pretrained={os.path.join(CKPT_DIR, args.exp_name)}",
                     tasks=["zorro", "blimp_filtered"],
                     ppo_trainer=ppo_trainer, device=ppo_trainer.accelerator.device.index)
 

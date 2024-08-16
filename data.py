@@ -5,13 +5,14 @@ import re
 from pytorch_lightning import LightningDataModule
 from sklearn.model_selection import train_test_split
 from tokenizers.implementations import ByteLevelBPETokenizer
+from tokenizers.processors import TemplateProcessing
 
 from torch.utils.data import Dataset, DataLoader
 
 from nltk.tokenize import sent_tokenize
 
 import pandas as pd
-from transformers import DataCollatorForLanguageModeling, LlamaTokenizerFast, DataCollatorWithPadding, \
+from transformers import DataCollatorForLanguageModeling, DataCollatorWithPadding, \
     GPT2TokenizerFast
 
 from utils import BABYLM_DATA_DIR, SPEAKER_CODES_CAREGIVER, BABYLM_DATA_DIR_CLEAN, BABYLM_DATA_PATH_DEV_CLEAN, \
@@ -22,7 +23,7 @@ SPLIT_RANDOM_STATE = 1
 
 SEQUENCE_START_TOKEN = "<|startoftext|>"
 SEQUENCE_END_TOKEN = "<|endoftext|>"
-PAD_TOKEN = "<|endoftext|>"
+PAD_TOKEN = "<|pad|>"
 UNK_TOKEN = "<|endoftext|>"
 MASK_TOKEN = "<mask>"
 
@@ -82,7 +83,12 @@ class ChildesDataModule(LightningDataModule):
             train_tokenizer(tokenizer_dir, vocab_size, data_train)
 
         self.tokenizer = GPT2TokenizerFast.from_pretrained(
-            tokenizer_dir, return_token_type_ids=False, add_prefix_space=True, pad_token=PAD_TOKEN, add_bos_token=True, bos_token=SEQUENCE_START_TOKEN,
+            tokenizer_dir, return_token_type_ids=False, add_prefix_space=True, pad_token=PAD_TOKEN, bos_token=SEQUENCE_START_TOKEN, eos_token=SEQUENCE_END_TOKEN
+        )
+        self.tokenizer._tokenizer.post_processor = TemplateProcessing(
+            single=self.tokenizer.bos_token + " $0 " + self.tokenizer.eos_token,
+            special_tokens=[(self.tokenizer.eos_token, self.tokenizer.eos_token_id),
+                            (self.tokenizer.bos_token, self.tokenizer.bos_token_id)],
         )
 
         if max_num_words is not None:
@@ -196,7 +202,12 @@ class BabyLMDataModule(LightningDataModule):
             train_tokenizer(tokenizer_dir, vocab_size, data_file_names=data_file_names, training_track=training_track)
 
         self.tokenizer = GPT2TokenizerFast.from_pretrained(
-            tokenizer_dir, return_token_type_ids=False, add_prefix_space=True, pad_token=PAD_TOKEN, add_bos_token=True, bos_token=SEQUENCE_START_TOKEN,
+            tokenizer_dir, return_token_type_ids=False, add_prefix_space=True, pad_token=PAD_TOKEN, bos_token=SEQUENCE_START_TOKEN, eos_token=SEQUENCE_END_TOKEN,
+        )
+        self.tokenizer._tokenizer.post_processor = TemplateProcessing(
+            single=self.tokenizer.bos_token + " $0 " + self.tokenizer.eos_token,
+            special_tokens=[(self.tokenizer.eos_token, self.tokenizer.eos_token_id),
+                            (self.tokenizer.bos_token, self.tokenizer.bos_token_id)],
         )
 
         self.dataset_dev = BabyLMDataset(BABYLM_DATA_PATH_DEV_CLEAN, tokenizer=self.tokenizer, max_len=max_len,
