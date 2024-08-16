@@ -417,7 +417,7 @@ def parse_args():
     argparser.add_argument(
         "--eval_freq",
         type=int,
-        default=50,
+        default=100,
     )
     argparser.add_argument(
         "--target_kl",
