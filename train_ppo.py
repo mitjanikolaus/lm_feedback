@@ -268,7 +268,7 @@ def main(args):
     value_model = AutoModelForSequenceClassification.from_pretrained(args.value_model)
     value_model_tokenizer = AutoTokenizer.from_pretrained(args.value_model)
 
-    output_min_length = 4
+    output_min_length = 10
     output_max_length = 20
     output_length_sampler = LengthSampler(output_min_length, output_max_length)
 
@@ -302,12 +302,12 @@ def main(args):
             for query in query_tensors:
                 gen_len = output_length_sampler()
                 generation_kwargs["max_new_tokens"] = gen_len
-                response = ppo_trainer.generate(query, **generation_kwargs)
-                response_tensors.append(response.squeeze()[-gen_len:])
-            batch["response"] = [tokenizer.decode(r.squeeze()) for r in response_tensors]
+                response = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
+                response_tensors.append(response.squeeze())
+            batch["response"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True) for r in response_tensors]
 
             #### Compute reward
-            texts = [q + r for q, r in zip(batch["query"], batch["response"])]
+            texts = [(q + r).strip() for q, r in zip(batch["query"], batch["response"])]
             texts_encoded = value_model_tokenizer(texts, padding=True, truncation=True, return_tensors="pt",
                                                   max_length=output_max_length + 10)
             value_model_outputs = value_model(**texts_encoded)
@@ -338,10 +338,10 @@ def main(args):
                 generation_kwargs["max_new_tokens"] = gen_len
                 query = [torch.tensor([tokenizer.bos_token_id], device=ppo_trainer.current_device)] * generation_batch_size
                 responses = ppo_trainer.generate(query, **generation_kwargs)
-                response_tensors.extend([resp.squeeze()[-gen_len:] for resp in responses])
+                response_tensors.extend([resp.squeeze() for resp in responses])
                 query_tensors.extend(query)
 
-            batch["response"] = [tokenizer.decode(r.squeeze()).strip() for r in response_tensors]
+            batch["response"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True).strip() for r in response_tensors]
 
             #### Compute reward
             texts = batch["response"]
