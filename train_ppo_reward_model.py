@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Optional, Union, Callable, List, Dict, Tuple, Any
 
 import torch
+import torch.nn.functional as F
 import wandb
 from sklearn.model_selection import train_test_split
 from torch import nn
@@ -188,11 +189,12 @@ class CFRewardTrainer(RewardTrainer):
         loss = loss.detach()
 
         logits = output_dict["logits"]
-        logits = nested_detach(logits)
+        outputs = F.sigmoid(logits.squeeze())
+        outputs = nested_detach(outputs)
 
         labels = inputs["reward"]
 
-        return loss, logits, labels
+        return loss, outputs, labels
 
 
     def compute_loss(
@@ -209,7 +211,8 @@ class CFRewardTrainer(RewardTrainer):
         if "margin" in inputs:
             raise NotImplementedError()
         else:
-            loss = nn.functional.mse_loss(logits.squeeze(), target=inputs["reward"])
+            outputs = F.sigmoid(logits.squeeze())
+            loss = nn.functional.mse_loss(outputs, target=inputs["reward"])
 
         if return_outputs:
             return loss, {
