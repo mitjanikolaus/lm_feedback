@@ -6,7 +6,7 @@ import torch
 import wandb
 from tqdm import tqdm
 import pandas as pd
-
+import torch.nn.functional as F
 from utils import CHILDES_LM_DATA_FILE
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -311,6 +311,7 @@ def main(args):
                                                   max_length=output_max_length + 10)
             value_model_outputs = value_model(**texts_encoded)
             rewards = value_model_outputs.logits.squeeze()
+            rewards = F.sigmoid(rewards)
             rewards = [torch.tensor(r.item()) for r in rewards]
 
             #### Run PPO step
