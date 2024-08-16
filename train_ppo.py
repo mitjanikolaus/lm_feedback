@@ -285,7 +285,7 @@ def main(args):
         model.save_pretrained(os.path.join(CKPT_DIR, args.exp_name))
         tokenizer.save_pretrained(os.path.join(CKPT_DIR, args.exp_name))
 
-        eval_babylm(model="hf", model_args=f"pretrained={os.path.join(CKPT_DIR, args.exp_name)}",
+        eval_babylm(model="hf", model_args=f"pretrained={os.path.join(CKPT_DIR, args.exp_name)},add_bos_token=True",
                     tasks=["zorro", "blimp_filtered"],
                     ppo_trainer=ppo_trainer, device=ppo_trainer.accelerator.device.index)
 
