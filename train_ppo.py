@@ -1,15 +1,16 @@
-import argparse
 import os
 import warnings
+from dataclasses import dataclass
 
 import torch
+
 import wandb
 from tqdm import tqdm
 import pandas as pd
 import torch.nn.functional as F
 from utils import CHILDES_LM_DATA_FILE
 
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, HfArgumentParser
 from datasets import Dataset
 
 from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
@@ -228,80 +229,89 @@ def eval_babylm(model, model_args, tasks, ppo_trainer, device, eval_batch_size=1
     results = {key.replace("_", "/"): val["acc,none"] for key, val in out["results"].items() if "acc,none" in val}
     ppo_trainer.accelerator.log(results)
 
+@dataclass
+class CfPPOConfig(PPOConfig):
+    model_name: str = "childes-gpt"
+    tracker_project_name: str = "lm_feedback_ppo"
 
-def main(args):
-    if args.log_with == "wandb":
+    policy_model: str = None
+    value_model: str = None
+
+    output_min_length: int = 7
+    output_max_length: int = 20
+
+    generation_top_p: float = 1.0
+
+    query_data_path: str = CHILDES_LM_DATA_FILE
+    query_min_length: int = 1
+    query_max_length: int = 0
+
+    eval_freq: int = 100
+
+    log_with: str = "wandb"
+
+
+def main():
+    parser = HfArgumentParser(CfPPOConfig)
+    config = parser.parse_args_into_dataclasses()[0]
+
+    if config.log_with == "wandb":
         wandb.init(
-            name=args.exp_name,
+            name=config.exp_name,
             project="lm_feedback_ppo",
-            config=args,
+            config=config,
         )
 
-    config = PPOConfig(
-        model_name="childes-gpt",
-        learning_rate=args.learning_rate,
-        log_with=args.log_with,
-        batch_size=args.batch_size,
-        mini_batch_size=args.mini_batch_size,
-        seed=args.seed,
-        target=args.target_kl,
-        accelerator_kwargs={"mixed_precision": "bf16"},
-        tracker_project_name="lm_feedback_ppo",
-    )
+    config.accelerator_kwargs = {"mixed_precision": "bf16"}
 
-    model = AutoModelForCausalLMWithValueHead.from_pretrained(args.policy_model)
-    tokenizer = AutoTokenizer.from_pretrained(args.policy_model)
+    model = AutoModelForCausalLMWithValueHead.from_pretrained(config.policy_model)
+    tokenizer = AutoTokenizer.from_pretrained(config.policy_model)
 
-    if args.query_max_length > 0:
-        dataset = build_policy_trainer_dataset(tokenizer, query_data_path=args.query_data_path,
-                                               min_length=args.query_min_length, max_length=args.query_max_length)
+    if config.query_max_length > 0:
+        dataset = build_policy_trainer_dataset(tokenizer, query_data_path=config.query_data_path,
+                                               min_length=config.query_min_length, max_length=config.query_max_length)
     else:
         dataset = None
 
     def collator(data):
         return dict((key, [d[key] for d in data]) for key in data[0])
 
-    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(args.policy_model)
+    ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(config.policy_model)
 
     ppo_trainer = PPOTrainer(config, model, ref_model, tokenizer, dataset=dataset, data_collator=collator)
 
-    value_model = AutoModelForSequenceClassification.from_pretrained(args.value_model)
-    value_model_tokenizer = AutoTokenizer.from_pretrained(args.value_model)
-
-    output_min_length = 10
-    output_max_length = 20
-    output_length_sampler = LengthSampler(output_min_length, output_max_length)
+    value_model = AutoModelForSequenceClassification.from_pretrained(config.value_model)
+    value_model_tokenizer = AutoTokenizer.from_pretrained(config.value_model)
 
     generation_kwargs = {
         "min_length": -1,
         "top_k": 0.0,
-        "top_p": args.generation_top_p,
+        "top_p": config.generation_top_p,
         "do_sample": True,
         "pad_token_id": tokenizer.pad_token_id,
         "eos_token_id": tokenizer.eos_token_id,
     }
 
     def eval_babylm_metrics():
-        model.save_pretrained(os.path.join(CKPT_DIR, args.exp_name))
-        tokenizer.save_pretrained(os.path.join(CKPT_DIR, args.exp_name))
+        model.save_pretrained(os.path.join(CKPT_DIR, config.exp_name))
+        tokenizer.save_pretrained(os.path.join(CKPT_DIR, config.exp_name))
 
-        eval_babylm(model="hf", model_args=f"pretrained={os.path.join(CKPT_DIR, args.exp_name)},add_bos_token=True",
+        eval_babylm(model="hf", model_args=f"pretrained={os.path.join(CKPT_DIR, config.exp_name)},add_bos_token=True",
                     tasks=["zorro", "blimp_filtered"],
                     ppo_trainer=ppo_trainer, device=ppo_trainer.accelerator.device.index)
 
 
-    if args.query_max_length > 0:
+    if config.query_max_length > 0:
         for step, batch in enumerate(tqdm(ppo_trainer.dataloader)):
-            if step % args.eval_freq == 0:
+            if step % config.eval_freq == 0:
                 eval_babylm_metrics()
 
             query_tensors = batch["input_ids"]
 
-            #### Get completion from gpt2
+            #### Generate text
             response_tensors = []
             for query in query_tensors:
-                gen_len = output_length_sampler()
-                generation_kwargs["max_new_tokens"] = gen_len
+                generation_kwargs["max_new_tokens"] = config.output_max_length
                 response = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
                 response_tensors.append(response.squeeze())
             batch["response"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True) for r in response_tensors]
@@ -309,7 +319,7 @@ def main(args):
             #### Compute reward
             texts = [(q + r).strip() for q, r in zip(batch["query"], batch["response"])]
             texts_encoded = value_model_tokenizer(texts, padding=True, truncation=True, return_tensors="pt",
-                                                  max_length=output_max_length + 10)
+                                                  max_length=config.output_max_length + 10)
             value_model_outputs = value_model(**texts_encoded)
             rewards = value_model_outputs.logits.squeeze()
             rewards = F.sigmoid(rewards)
@@ -321,25 +331,23 @@ def main(args):
 
     else:
         for step in tqdm(range(config.steps)):
-            if step % args.eval_freq == 0:
+            if step % config.eval_freq == 0:
                 eval_babylm_metrics()
 
-            #### Get completion from gpt2
+            #### Generate text
             response_tensors = []
-
             batch = dict()
             query_tensors = []
 
-            # Generate with 4 different lengths
-            assert args.mini_batch_size % 4 == 0
-            generation_batch_size = args.mini_batch_size // 4
-            for i in range(4):
-                gen_len = output_length_sampler()
-                generation_kwargs["max_new_tokens"] = gen_len
-                query = [torch.tensor([tokenizer.bos_token_id], device=ppo_trainer.current_device)] * generation_batch_size
+            query = [torch.tensor([tokenizer.bos_token_id], device=ppo_trainer.current_device)] * config.mini_batch_size
+            query_tensors.extend(query)
+            # generate until enough sentences of min lengths
+            while len(response_tensors) < len(query):
+                generation_kwargs["max_new_tokens"] = config.output_max_length
                 responses = ppo_trainer.generate(query, **generation_kwargs)
-                response_tensors.extend([resp.squeeze() for resp in responses])
-                query_tensors.extend(query)
+                response_tensors.extend([resp.squeeze() for resp in responses if len(resp.squeeze()) >= config.output_min_length])
+
+            response_tensors = response_tensors[:config.mini_batch_size]
 
             batch["response"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True).strip() for r in response_tensors]
 
@@ -353,87 +361,10 @@ def main(args):
 
             #### Run PPO step
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
-            batch["query"] = [""] * args.batch_size
+            batch["query"] = [""] * config.batch_size
             ppo_trainer.log_stats(stats, batch, rewards)
-
-
-def parse_args():
-    argparser = argparse.ArgumentParser()
-    argparser.add_argument(
-        "--policy_model",
-        type=str,
-    )
-    argparser.add_argument(
-        "--value_model",
-        type=str,
-    )
-    argparser.add_argument(
-        "--query_data_path",
-        type=str,
-        default=CHILDES_LM_DATA_FILE
-    )
-    argparser.add_argument(
-        "--query_min_length",
-        type=int,
-        default=1
-    )
-    argparser.add_argument(
-        "--query_max_length",
-        type=int,
-        default=4
-    )
-    argparser.add_argument(
-        "--log_with",
-        type=str,
-        default="wandb",
-    )
-    argparser.add_argument(
-        "--exp_name",
-        type=str,
-        default="test",
-    )
-    argparser.add_argument(
-        "--seed",
-        type=int,
-        default=1,
-    )
-    argparser.add_argument(
-        "--generation_top_p",
-        type=float,
-        default=1.0,
-    )
-    argparser.add_argument(
-        "--batch_size",
-        type=int,
-        default=128,
-    )
-    argparser.add_argument(
-        "--mini_batch_size",
-        type=int,
-        default=128,
-    )
-    argparser.add_argument(
-        "--learning_rate",
-        type=float,
-        default=1.41e-5,
-    )
-    argparser.add_argument(
-        "--eval_freq",
-        type=int,
-        default=100,
-    )
-    argparser.add_argument(
-        "--target_kl",
-        type=int,
-        default=6,
-    )
-
-    args = argparser.parse_args()
-
-    return args
 
 
 if __name__ == "__main__":
     os.makedirs(CKPT_DIR, exist_ok=True)
-    args = parse_args()
-    main(args)
+    main()
