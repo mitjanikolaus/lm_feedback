@@ -9,7 +9,7 @@ from pytorch_lightning.cli import LightningCLI
 from pytorch_lightning.loggers import WandbLogger
 from transformers import LlamaForCausalLM, LlamaConfig, GPT2Config
 from torch.optim import AdamW
-from data import ChildesDataModule, SEQUENCE_START_TOKEN, MASK_TOKEN
+from data import ChildesDataModule, SEQUENCE_START_TOKEN, MASK_TOKEN, SEQUENCE_END_TOKEN
 
 from lm_eval import evaluator
 
@@ -189,7 +189,10 @@ class BabyLMModel(LightningModule):
                 with torch.no_grad():
                     out = self.model(**inputs)
                 predicted_token = out.logits[0, -1].argmax().cpu().item()
-                sequence += tokenizer.decode(predicted_token)
+                decoded_token = tokenizer.decode(predicted_token)
+                sequence += decoded_token
+                if decoded_token == SEQUENCE_END_TOKEN:
+                    break
 
             print(sequence.replace(SEQUENCE_START_TOKEN, ""))
 
