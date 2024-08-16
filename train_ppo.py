@@ -1,8 +1,9 @@
 import os
 import warnings
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import torch
+from trl.trainer.ppo_config import JSONDict
 
 import wandb
 from tqdm import tqdm
@@ -250,6 +251,8 @@ class CfPPOConfig(PPOConfig):
 
     log_with: str = "wandb"
 
+    accelerator_kwargs: JSONDict = field(default_factory=lambda: {"mixed_precision": "bf16"})
+
 
 def main():
     parser = HfArgumentParser(CfPPOConfig)
@@ -261,8 +264,6 @@ def main():
             project="lm_feedback_ppo",
             config=config,
         )
-
-    config.accelerator_kwargs = {"mixed_precision": "bf16"}
 
     model = AutoModelForCausalLMWithValueHead.from_pretrained(config.policy_model)
     tokenizer = AutoTokenizer.from_pretrained(config.policy_model)
