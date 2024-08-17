@@ -352,7 +352,7 @@ def main():
             while len(response_tensors) < len(query):
                 generation_kwargs["max_new_tokens"] = config.output_max_length
                 responses = ppo_trainer.generate(query, **generation_kwargs)
-                response_tensors.extend([resp.squeeze() for resp in responses if len(resp.squeeze()) >= config.output_min_length])
+                response_tensors.extend([resp.squeeze() for resp in responses if resp.shape[-1] >= config.output_min_length])
 
             response_tensors = response_tensors[:config.mini_batch_size]
 
