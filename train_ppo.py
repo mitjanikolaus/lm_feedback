@@ -315,14 +315,8 @@ def main():
             for query in query_tensors:
                 while 1:
                     generation_kwargs["max_new_tokens"] = config.output_max_length
-                    print(query)
                     response = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
-                    print(response)
-                    if response.dim() < 2:
-                        print(response)
-                        print(tokenizer.decode(response))
-                        continue
-                    if len(response.squeeze()) >= config.output_min_length:
+                    if response.shape[-1] >= config.output_min_length:
                         response_tensors.append(response.squeeze())
                         break
 
