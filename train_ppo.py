@@ -317,7 +317,7 @@ def main():
                 query = query_tensors[i % len(query_tensors)]
                 generation_kwargs["max_new_tokens"] = config.output_max_length
                 response = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
-                if response.shape[-1] >= config.output_min_length:
+                if response.shape[-1]-1 >= config.output_min_length:
                     response_tensors.append(response.squeeze())
                 i = i+1
 
@@ -351,8 +351,8 @@ def main():
             # generate until enough sentences of min lengths
             while len(response_tensors) < len(query):
                 generation_kwargs["max_new_tokens"] = config.output_max_length
-                responses = ppo_trainer.generate(query, **generation_kwargs)
-                response_tensors.extend([resp.squeeze() for resp in responses if resp.shape[-1] >= config.output_min_length])
+                responses = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
+                response_tensors.extend([resp.squeeze() for resp in responses if resp.shape[-1]-1 >= config.output_min_length])
 
             response_tensors = response_tensors[:config.mini_batch_size]
 
