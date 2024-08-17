@@ -305,8 +305,8 @@ def main():
 
     if config.query_max_length > 0:
         for step, batch in enumerate(tqdm(ppo_trainer.dataloader)):
-            # if step % config.eval_freq == 0:
-            #     eval_babylm_metrics()#TODO
+            if step % config.eval_freq == 0:
+                eval_babylm_metrics()
 
             query_tensors = batch["input_ids"]
 
