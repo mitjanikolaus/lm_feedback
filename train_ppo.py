@@ -312,13 +312,14 @@ def main():
 
             #### Generate text
             response_tensors = []
-            for query in query_tensors:
-                while 1:
-                    generation_kwargs["max_new_tokens"] = config.output_max_length
-                    response = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
-                    if response.shape[-1] >= config.output_min_length:
-                        response_tensors.append(response.squeeze())
-                        break
+            i = 0
+            while len(response_tensors) < len(query_tensors):
+                query = query_tensors[i % len(query_tensors)]
+                generation_kwargs["max_new_tokens"] = config.output_max_length
+                response = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
+                if response.shape[-1] >= config.output_min_length:
+                    response_tensors.append(response.squeeze())
+                i = i+1
 
             batch["response"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True) for r in response_tensors]
 
