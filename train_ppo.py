@@ -198,6 +198,7 @@ def build_policy_trainer_dataset(tokenizer, query_data_path, min_length=1, max_l
 
     data_queries = data_queries[["transcript_clean"]]
 
+    # data_queries = data_queries.iloc[:1000]
     ds = Dataset.from_pandas(data_queries)
 
     ds = ds.filter(lambda x: len(x["transcript_clean"]) > 10, batched=False)
@@ -304,8 +305,8 @@ def main():
 
     if config.query_max_length > 0:
         for step, batch in enumerate(tqdm(ppo_trainer.dataloader)):
-            if step % config.eval_freq == 0:
-                eval_babylm_metrics()
+            # if step % config.eval_freq == 0:
+            #     eval_babylm_metrics()#TODO
 
             query_tensors = batch["input_ids"]
 
@@ -315,6 +316,10 @@ def main():
                 while 1:
                     generation_kwargs["max_new_tokens"] = config.output_max_length
                     response = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
+                    if response.dim() < 2:
+                        print(response)
+                        print(tokenizer.decode(response))
+                        continue
                     if len(response.squeeze()) >= config.output_min_length:
                         response_tensors.append(response.squeeze())
                         break
