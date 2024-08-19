@@ -340,7 +340,7 @@ class CfPPOConfig(PPOConfig):
     generation_temperature: float = 1.0
 
     entropy_reg_coef: float = 0.0
-    score_clip: float = 0.6
+    score_clip: float = None
 
     query_data_path: str = CHILDES_LM_DATA_FILE
     query_min_length: int = 1
