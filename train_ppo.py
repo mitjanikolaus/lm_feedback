@@ -165,9 +165,12 @@ class ChildesPPOTrainer(PPOTrainer):
         pg_loss = masked_mean(torch.max(pg_losses, pg_losses2), mask)
         pg_clipfrac = masked_mean(torch.gt(pg_losses2, pg_losses).float(), mask)
 
-        entropy_loss = - masked_mean(entropy_from_logits(logits), mask)
+        entropy = masked_mean(entropy_from_logits(logits), mask)
+        entropy_loss = - entropy
 
-        loss = pg_loss + self.config.vf_coef * vf_loss + self.config.entropy_reg_coef * entropy_loss
+        loss = pg_loss + self.config.vf_coef * vf_loss
+        if self.config.entropy_reg_coef > 0:
+            loss += self.config.entropy_reg_coef * entropy_loss
 
         avg_ratio = masked_mean(ratio, mask).item()
         if avg_ratio > self.config.ratio_threshold:
@@ -178,8 +181,6 @@ class ChildesPPOTrainer(PPOTrainer):
             vf_loss = vf_loss * 0.0
             entropy_loss = entropy_loss * 0.0
             loss = loss * 0.0
-
-        entropy = masked_mean(entropy_from_logits(logits), mask)
 
         approxkl = 0.5 * masked_mean((logprobs - old_logprobs) ** 2, mask)
         policykl = masked_mean(old_logprobs - logprobs, mask)
