@@ -29,6 +29,16 @@ MASK_TOKEN = "<mask>"
 
 SPECIAL_TOKENS = [PAD_TOKEN, SEQUENCE_END_TOKEN, SEQUENCE_START_TOKEN, UNK_TOKEN]
 
+DATA_FILE_CHILDES = "childes"
+DATA_FILE_BNC = "bnc_spoken"
+DATA_FILE_GUTENBERG = "gutenberg"
+DATA_FILE_OPEN_SUBTITLES = "open_subtitles"
+DATA_FILE_WIKI = "simple_wiki"
+DATA_FILE_SWITCHBOARD = "switchboard"
+
+DATA_NAMES = [DATA_FILE_CHILDES, DATA_FILE_BNC, DATA_FILE_GUTENBERG, DATA_FILE_OPEN_SUBTITLES, DATA_FILE_WIKI,
+              DATA_FILE_SWITCHBOARD]
+
 
 def train_tokenizer(save_path, vocab_size, data_iterator=None, data_file_names=None, training_track=None):
     print(f"Training tokenizer for vocab size {vocab_size} .. ")
@@ -44,16 +54,92 @@ def train_tokenizer(save_path, vocab_size, data_iterator=None, data_file_names=N
     tokenizer.save_model(save_path)
     print(f"Saved trained tokenizer to {save_path}")
 
+# We're not fixing words such as "wanna", as it can be both "want to" and "want a"
+SLANG_EXPRESSIONS = {
+    "hasta": "has to",
+    "hafta": "have to",
+    "hadta": "had to",
+    "needta": "need to",
+    "dat's": "that is",
+    "dat": "that",
+    "dis": "this",
+    "dere": "there",
+    "de": "the",
+    "gonna": "going to",
+    "anoder": "another",
+    "dunno": "don't know",
+    "'cause": "because",
+}
 
-DATA_FILE_CHILDES = "childes"
-DATA_FILE_BNC = "bnc_spoken"
-DATA_FILE_GUTENBERG = "gutenberg"
-DATA_FILE_OPEN_SUBTITLES = "open_subtitles"
-DATA_FILE_WIKI = "simple_wiki"
-DATA_FILE_SWITCHBOARD = "switchboard"
 
-DATA_NAMES = [DATA_FILE_CHILDES, DATA_FILE_BNC, DATA_FILE_GUTENBERG, DATA_FILE_OPEN_SUBTITLES, DATA_FILE_WIKI,
-              DATA_FILE_SWITCHBOARD]
+def replace_slang_forms(utterance):
+    words = utterance.split(" ")
+    cleaned_utterance = [
+        word if word.replace(",", "") not in SLANG_EXPRESSIONS.keys() else SLANG_EXPRESSIONS[word.replace(",", "")]
+        for word in words
+    ]
+    cleaned_utterance = " ".join(cleaned_utterance)
+    return cleaned_utterance.strip()
+
+
+def preprocess_caregiver_utterance(utt):
+    utt = utt.strip()
+    utt = utt.replace("   ", " ")
+    utt = utt.replace("  ", " ")
+
+    utt = replace_slang_forms(utt)
+
+    utt = utt.replace("i'm", "i am")
+    utt = utt.replace("I'm", "I am")
+    utt = utt.replace("it's", "it is")
+    utt = utt.replace("she's", "she is")
+    utt = utt.replace("he's", "he is")
+    utt = utt.replace("one's", "one is")
+    utt = utt.replace("who's", "who is")
+    utt = utt.replace("what's", "what is")
+    utt = utt.replace("how's", "how is")
+    utt = utt.replace("there's", "there is")
+    utt = utt.replace("that's", "that is")
+    utt = utt.replace("where's", "where is")
+    utt = utt.replace("here's", "here is")
+    utt = utt.replace("Mommy's here", "Mommy is here")
+    utt = utt.replace("why's", "why is")
+    # utt = utt.replace("", " is")
+    # utt = utt.replace("", " is")
+
+
+# "cat's in the cupboard"
+# "that one's good"
+
+    utt = utt.replace("we're", "they are")
+    utt = utt.replace("you're", "they are")
+    utt = utt.replace("they're", "they are")
+
+    utt = utt.replace("what're", "what are")
+    utt = utt.replace("where're", "where are")
+    utt = utt.replace("why're", "why are")
+
+
+    utt = utt.replace("I've", "I have")
+    utt = utt.replace("i've", "i have")
+    utt = utt.replace("you've", "you have")
+    utt = utt.replace("we've", "we have")
+    utt = utt.replace("they've", "they have")
+
+    utt = utt.replace("isn't", "is not")
+    utt = utt.replace("didn't", "did not")
+    utt = utt.replace("don't", "do not")
+
+    if "wanna" in utt:
+        print(utt)
+
+    if "'s" in utt:
+        if not "let's" in utt:
+            print(utt)
+    if "'re" in utt:
+        print(utt)
+
+    return utt
 
 
 class ChildesDataModule(LightningDataModule):
@@ -74,6 +160,9 @@ class ChildesDataModule(LightningDataModule):
         data_df = pd.read_csv(lm_data_path)
         if capitalize_bos:
             data_df["transcript_clean"] = data_df["transcript_clean"].apply(lambda x: x[0].capitalize() + x[1:])
+
+        data_df["transcript_clean"] = data_df["transcript_clean"].apply(preprocess_caregiver_utterance)
+
         data = data_df.transcript_clean.to_list()
 
         data_train, data_dev = train_test_split(data, test_size=DEV_SET_SIZE, shuffle=True,
