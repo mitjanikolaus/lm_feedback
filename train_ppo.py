@@ -6,6 +6,7 @@ from typing import Optional, Union, List
 
 import torch
 from accelerate.utils import gather_object
+from trl.commands.scripts.ppo import query_tensors
 from trl.trainer.ppo_config import JSONDict
 
 import wandb
@@ -404,20 +405,11 @@ def main():
 
     def generate_without_query():
         #### Generate text
-        response_tensors = []
         batch = dict()
-        query_tensors = []
-
-        query = [torch.tensor([tokenizer.bos_token_id], device=ppo_trainer.current_device)] * config.mini_batch_size
-        query_tensors.extend(query)
-        # generate until enough sentences of min lengths
-        while len(response_tensors) < len(query):
-            generation_kwargs["max_new_tokens"] = config.output_max_length
-            responses = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
-            response_tensors.extend(
-                [resp.squeeze() for resp in responses if resp.shape[-1] - 1 >= config.output_min_length])
-
-        response_tensors = response_tensors[:config.mini_batch_size]
+        query_tensors = [torch.tensor([tokenizer.bos_token_id], device=ppo_trainer.current_device)] * config.mini_batch_size
+        generation_kwargs["max_new_tokens"] = config.output_max_length
+        responses = ppo_trainer.generate(query_tensors, return_prompt=False, **generation_kwargs)
+        response_tensors = [resp.squeeze() for resp in responses]
 
         batch["response"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True).strip() for r in response_tensors]
         batch["query"] = [""] * config.batch_size
@@ -428,14 +420,10 @@ def main():
 
         #### Generate text
         response_tensors = []
-        i = 0
-        while len(response_tensors) < len(query_tensors):
-            query = query_tensors[i % len(query_tensors)]
+        for query in query_tensors:
             generation_kwargs["max_new_tokens"] = config.output_max_length
             response = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
-            if response.shape[-1] - 1 >= config.output_min_length:
-                response_tensors.append(response.squeeze())
-            i = i + 1
+            response_tensors.append(response.squeeze())
 
         batch["response"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True) for r in response_tensors]
         return batch, response_tensors, query_tensors
@@ -459,6 +447,11 @@ def main():
 
             batch, response_tensors, query_tensors = generate(batch)
             rewards = compute_rewards(batch)
+
+            # rejection sampling: replace reward with -1 if produced sample is too short
+            response_lengths = [resp.shape[-1] - 1 for resp in response_tensors]
+            rewards = [r if length >= config.output_min_length else torch.tensor(-1.0) for r, length in zip(rewards, response_lengths)]
+
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
 
             if step % config.log_freq == 0:
@@ -471,6 +464,11 @@ def main():
 
             batch, response_tensors, query_tensors = generate_without_query()
             rewards = compute_rewards(batch)
+
+            # rejection sampling: replace reward with -1 if produced sample is too short
+            response_lengths = [resp.shape[-1] - 1 for resp in response_tensors]
+            rewards = [r if length >= config.output_min_length else torch.tensor(-1.0) for r, length in zip(rewards, response_lengths)]
+
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
 
             if step % config.log_freq == 0:
