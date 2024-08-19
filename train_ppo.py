@@ -176,6 +176,7 @@ class ChildesPPOTrainer(PPOTrainer):
             )
             pg_loss = pg_loss * 0.0
             vf_loss = vf_loss * 0.0
+            entropy_loss = entropy_loss * 0.0
             loss = loss * 0.0
 
         entropy = masked_mean(entropy_from_logits(logits), mask)
