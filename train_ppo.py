@@ -340,13 +340,14 @@ class CfPPOConfig(PPOConfig):
     generation_temperature: float = 1.0
 
     entropy_reg_coef: float = 0.0
+    score_clip: float = 0.6
 
     query_data_path: str = CHILDES_LM_DATA_FILE
     query_min_length: int = 1
     query_max_length: int = 0
 
     eval_freq: int = 100
-    log_freq: int = 10
+    log_freq: int = 20
 
     log_with: str = "wandb"
 
