@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Union
 
 import torch
+from accelerate.utils import gather_object
 from trl.trainer.ppo_config import JSONDict
 
 import wandb
@@ -180,6 +181,77 @@ class ChildesPPOTrainer(PPOTrainer):
         )
         return loss, flatten_dict(stats)
 
+    def log_stats(
+        self,
+        stats: dict,
+        batch: dict,
+        rewards: typing.List[torch.FloatTensor],
+        columns_to_log: typing.Iterable[str] = ("query", "response"),
+    ):
+        """
+        A function that logs all the training stats. Call it at the end of each epoch.
+
+        Args:
+            stats (dict[str, Any]):
+                A dictionary of training stats.
+            batch (dict[str, Any]):
+                A dictionary of batch data, this contains the queries and responses.
+            rewards (`List[torch.FloatTensor]`):
+                A tensor of rewards.
+        """
+
+        # all gather stats
+        if not isinstance(rewards, torch.Tensor):
+            rewards = torch.tensor(rewards).to(self.current_device)
+        rewards = self.accelerator.gather(rewards).flatten()
+
+        if self.config.log_with == "wandb":
+            import wandb
+
+            if any(column_to_log not in batch.keys() for column_to_log in columns_to_log):
+                raise ValueError(f"Columns to log {columns_to_log} are not present in the batch {batch.keys()}.")
+
+            batch_list = [batch[column_to_log] for column_to_log in columns_to_log]
+            if self.is_distributed:
+                gathered_batch_list = []
+                for b in batch_list:
+                    flattened = gather_object(b)
+                    gathered_batch_list.append(flattened)
+                batch_list = gathered_batch_list
+
+        # Log only if we are in the main process
+        if self.accelerator.is_main_process:
+            logs = {}
+
+            # Log stats
+            if "query" not in batch.keys() and "response" not in batch.keys():
+                # warn the user that the game logs will not be logged
+                warnings.warn(
+                    "The game logs will not be logged because the batch does not contain the keys 'query' and "
+                    "'response'. "
+                )
+            elif self.config.log_with == "wandb":
+                table_rows = [list(r) for r in zip(*batch_list, rewards.cpu().tolist())]
+                logs.update({"game_log": wandb.Table(columns=[*columns_to_log, "reward"], rows=table_rows)})
+
+            logs.update(stats)
+
+            # manually cast in fp32 for bf16 torch tensors
+            for k, v in logs.items():
+                if isinstance(v, torch.Tensor) and v.dtype == torch.bfloat16:
+                    logs[k] = v.float()
+
+            logs["env/reward_mean"] = torch.mean(rewards).cpu().numpy().item()
+            logs["env/reward_std"] = torch.std(rewards).cpu().numpy().item()
+            logs["env/reward_dist"] = rewards.cpu().numpy()
+
+            self.current_step += 1
+
+            self.accelerator.log(
+                logs,
+                step=self.current_step,
+            )
+
 def build_policy_trainer_dataset(tokenizer, query_data_path, min_length=1, max_length=4):
     data_queries = pd.read_csv(query_data_path)
     # data_queries = data_queries.iloc[:1000]
@@ -221,7 +293,7 @@ def eval_babylm(model, model_args, tasks, ppo_trainer, device, eval_batch_size=1
         )
 
     results = {key.replace("_", "/"): val["acc,none"] for key, val in out["results"].items() if "acc,none" in val}
-    ppo_trainer.accelerator.log(results, step=ppo_trainer.global_step)
+    ppo_trainer.accelerator.log(results, step=ppo_trainer.current_step)
 
 @dataclass
 class CfPPOConfig(PPOConfig):
