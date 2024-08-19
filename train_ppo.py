@@ -340,6 +340,7 @@ class CfPPOConfig(PPOConfig):
     generation_temperature: float = 1.0
 
     entropy_reg_coef: float = 0.0
+    length_reward_coef: float = 0.0
     score_clip: float = None
 
     query_data_path: str = CHILDES_LM_DATA_FILE
@@ -441,6 +442,9 @@ def main():
         response_lengths = [len(resp) - 1 for resp in response_tensors]
         rewards = [r if length >= config.output_min_length else torch.tensor(-1.0) for r, length in
                    zip(rewards, response_lengths)]
+
+        # length reward
+        rewards = [r + config.length_reward_coef * length for r, length in zip(rewards, response_lengths)]
 
         return rewards
 
