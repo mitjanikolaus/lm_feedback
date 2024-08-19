@@ -244,6 +244,8 @@ class CfPPOConfig(PPOConfig):
     output_max_length: int = 20
 
     generation_top_p: float = 1.0
+    generation_top_k: int = 0
+    generation_temperature: float = 1.0
 
     query_data_path: str = CHILDES_LM_DATA_FILE
     query_min_length: int = 1
@@ -289,8 +291,9 @@ def main():
 
     generation_kwargs = {
         "min_length": -1,
-        "top_k": 0.0,
+        "top_k": config.generation_top_k,
         "top_p": config.generation_top_p,
+        "temperature": config.generation_temperature,
         "do_sample": True,
         "pad_token_id": tokenizer.pad_token_id,
         "eos_token_id": tokenizer.eos_token_id,
