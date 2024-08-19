@@ -138,7 +138,7 @@ class ChildesPPOTrainer(PPOTrainer):
         pg_loss = masked_mean(torch.max(pg_losses, pg_losses2), mask)
         pg_clipfrac = masked_mean(torch.gt(pg_losses2, pg_losses).float(), mask)
 
-        entropy_loss = - entropy_from_logits(logits).mean()
+        entropy_loss = - masked_mean(entropy_from_logits(logits), mask)
 
         loss = pg_loss + self.config.vf_coef * vf_loss + self.config.entropy_reg_coef * entropy_loss
 
@@ -310,7 +310,7 @@ class CfPPOConfig(PPOConfig):
     generation_top_k: int = 0
     generation_temperature: float = 1.0
 
-    entropy_reg_coef: float = 0.0,
+    entropy_reg_coef: float = 0.0
 
     query_data_path: str = CHILDES_LM_DATA_FILE
     query_min_length: int = 1
