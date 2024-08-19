@@ -275,7 +275,7 @@ class ChildesPPOTrainer(PPOTrainer):
             self.accelerator.log(
                 logs,
                 step=self.current_step,
-                commit=True,
+                kwargs={"commit": True},
             )
 
 def build_policy_trainer_dataset(tokenizer, query_data_path, min_length=1, max_length=4):
@@ -319,7 +319,8 @@ def eval_babylm(model, model_args, tasks, ppo_trainer, device, eval_batch_size=1
         )
 
     results = {key.replace("_", "/"): val["acc,none"] for key, val in out["results"].items() if "acc,none" in val}
-    ppo_trainer.accelerator.log(results, step=ppo_trainer.current_step, commit=True)
+    ppo_trainer.accelerator.log(results, step=ppo_trainer.current_step, kwargs={"commit": True})
+
 
 @dataclass
 class CfPPOConfig(PPOConfig):
