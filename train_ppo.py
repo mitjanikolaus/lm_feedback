@@ -408,7 +408,7 @@ def main():
         query_tensors = [torch.tensor([tokenizer.bos_token_id], device=ppo_trainer.current_device)] * config.mini_batch_size
         generation_kwargs["max_new_tokens"] = config.output_max_length
         responses = ppo_trainer.generate(query_tensors, return_prompt=False, **generation_kwargs)
-        response_tensors = [resp.squeeze() for resp in responses]
+        response_tensors = [resp for resp in responses]
 
         batch["response"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True).strip() for r in response_tensors]
         batch["query"] = [""] * config.batch_size
@@ -422,12 +422,12 @@ def main():
         for query in query_tensors:
             generation_kwargs["max_new_tokens"] = config.output_max_length
             response = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
-            response_tensors.append(response.squeeze())
+            response_tensors.append(response[0])
 
         batch["response"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True) for r in response_tensors]
         return batch, response_tensors, query_tensors
 
-    def compute_rewards(batch):
+    def compute_rewards(batch, response_tensors):
         texts = [(q + r).strip() for q, r in zip(batch["query"], batch["response"])]
 
         texts_encoded = value_model_tokenizer(texts, padding=True, truncation=True, return_tensors="pt",
@@ -437,6 +437,11 @@ def main():
         rewards = F.sigmoid(rewards)
         rewards = [torch.tensor(r.item()) for r in rewards]
 
+        # rejection sampling: replace reward with -1 if produced sample is too short
+        response_lengths = [len(resp) - 1 for resp in response_tensors]
+        rewards = [r if length >= config.output_min_length else torch.tensor(-1.0) for r, length in
+                   zip(rewards, response_lengths)]
+
         return rewards
 
     if config.query_max_length > 0:
@@ -445,11 +450,7 @@ def main():
                 eval_babylm_metrics()
 
             batch, response_tensors, query_tensors = generate(batch)
-            rewards = compute_rewards(batch)
-
-            # rejection sampling: replace reward with -1 if produced sample is too short
-            response_lengths = [resp.shape[-1] - 1 for resp in response_tensors]
-            rewards = [r if length >= config.output_min_length else torch.tensor(-1.0) for r, length in zip(rewards, response_lengths)]
+            rewards = compute_rewards(batch, response_tensors)
 
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
 
@@ -462,11 +463,7 @@ def main():
                 eval_babylm_metrics()
 
             batch, response_tensors, query_tensors = generate_without_query()
-            rewards = compute_rewards(batch)
-
-            # rejection sampling: replace reward with -1 if produced sample is too short
-            response_lengths = [resp.shape[-1] - 1 for resp in response_tensors]
-            rewards = [r if length >= config.output_min_length else torch.tensor(-1.0) for r, length in zip(rewards, response_lengths)]
+            rewards = compute_rewards(batch, response_tensors)
 
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
 
