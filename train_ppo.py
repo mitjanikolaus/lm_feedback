@@ -1,6 +1,8 @@
 import os
+import typing
 import warnings
 from dataclasses import dataclass, field
+from typing import Optional, Union
 
 import torch
 from trl.trainer.ppo_config import JSONDict
@@ -11,11 +13,12 @@ import pandas as pd
 import torch.nn.functional as F
 from utils import CHILDES_LM_DATA_FILE
 
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, HfArgumentParser
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, HfArgumentParser, PreTrainedTokenizerBase
 from datasets import Dataset
 
-from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead
-from trl.core import LengthSampler
+from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead, PreTrainedModelWrapper
+from trl.core import LengthSampler, PPODecorators, entropy_from_logits, masked_mean, clip_by_value, masked_var, \
+    flatten_dict
 from lm_eval import evaluator
 
 tqdm.pandas()
@@ -24,169 +27,158 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 CKPT_DIR = "ckpts_ppo"
 
 
-# class ChildesPPOTrainer(PPOTrainer):
-#     def __init__(
-#             self,
-#             config: Optional[PPOConfig] = None,
-#             model: Optional[PreTrainedModelWrapper] = None,
-#             ref_model: Optional[PreTrainedModelWrapper] = None,
-#             tokenizer: Optional[PreTrainedTokenizerBase] = None,
-#             dataset: Optional[Union[torch.utils.data.Dataset, Dataset]] = None,
-#             optimizer: Optional[torch.optim.Optimizer] = None,
-#             data_collator: Optional[typing.Callable] = None,
-#             num_shared_layers: Optional[int] = None,
-#             lr_scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
-#             training_data_collator: Optional[typing.Callable] = None,
-#     ):
-#         super(ChildesPPOTrainer, self).__init__(config, model, ref_model, tokenizer, dataset, optimizer, data_collator,
-#                                                 num_shared_layers, lr_scheduler, training_data_collator)
-#
-#     def generate(
-#         self,
-#         query_tensor: Optional[Union[torch.Tensor, typing.List[torch.Tensor]]] = None,
-#         length_sampler: Optional[typing.Callable] = None,
-#         batch_size: int = 4,
-#         return_prompt: bool = True,
-#         generate_ref_response: bool = False,
-#         **generation_kwargs,
-#     ):
-#         """
-#         Generate response with the model given the query tensor.
-#         call the `generate` method of the model.
-#
-#         Args:
-#             query_tensor (`torch.LongTensor`):
-#                 A tensor of shape (`seq_len`) containing query tokens or a list of tensors of shape (`seq_len`).
-#             length_sampler (`Callable`, *optional*):
-#                 Callable that returns the number of newly generated tokens.
-#             batch_size (`int`, *optional):
-#                 Batch size used for generation, defaults to `4`.
-#             return_prompt (`bool`, *optional*):
-#                 If set to `False` the prompt is not returned but only the newly generated tokens, defaults to `True`.
-#             generate_ref_response (`bool`, *optional*):
-#                 If set to `True` the reference response is also generated, defaults to `False`.
-#             generation_kwargs (dict[str, Any]):
-#                 Keyword arguments for generation.
-#
-#         Returns:
-#             `torch.LongTensor`: A tensor of shape (`batch_size`, `gen_len`) containing response tokens.
-#         """
-#         if generate_ref_response:
-#             ref_model = self.model if self.is_peft_model else self.ref_model
-#         if isinstance(query_tensor, List):
-#             response = self._generate_batched(
-#                 self.model,
-#                 query_tensor,
-#                 length_sampler=length_sampler,
-#                 batch_size=batch_size,
-#                 return_prompt=return_prompt,
-#                 **generation_kwargs,
-#             )
-#             if generate_ref_response:
-#                 ref_response = self._generate_batched(
-#                     ref_model,
-#                     query_tensor,
-#                     length_sampler=length_sampler,
-#                     batch_size=batch_size,
-#                     return_prompt=return_prompt,
-#                     **generation_kwargs,
-#                 )
-#
-#         else:
-#             if query_tensor is None:
-#                 # No query given
-#                 with unwrap_model_for_generation(self.model, self.accelerator) as unwrapped_model:
-#                     response = unwrapped_model.generate(**generation_kwargs)
-#             else:
-#                 if len(query_tensor.shape) == 2:
-#                     raise ValueError(
-#                         "query_tensor must be a tensor of shape (`seq_len`) or a list of tensors of shape (`seq_len`)"
-#                     )
-#
-#                 if length_sampler is not None:
-#                     generation_kwargs["max_new_tokens"] = length_sampler()
-#
-#                 with unwrap_model_for_generation(self.model, self.accelerator) as unwrapped_model:
-#                     response = unwrapped_model.generate(input_ids=query_tensor.unsqueeze(dim=0), **generation_kwargs)
-#
-#             if generate_ref_response:
-#                 with unwrap_model_for_generation(
-#                     ref_model, self.accelerator, is_peft_model=self.is_peft_model
-#                 ) as unwrapped_model:
-#                     ref_response = unwrapped_model.generate(
-#                         input_ids=query_tensor.unsqueeze(dim=0), **generation_kwargs
-#                     )
-#
-#             if not return_prompt and not self.is_encoder_decoder:
-#                 response = response[:, query_tensor.shape[0] :]
-#                 if generate_ref_response:
-#                     ref_response = ref_response[:, query_tensor.shape[0] :]
-#
-#         if generate_ref_response:
-#             return response, ref_response
-#         return response
+class ChildesPPOTrainer(PPOTrainer):
+    def __init__(
+            self,
+            config: Optional[PPOConfig] = None,
+            model: Optional[PreTrainedModelWrapper] = None,
+            ref_model: Optional[PreTrainedModelWrapper] = None,
+            tokenizer: Optional[PreTrainedTokenizerBase] = None,
+            dataset: Optional[Union[torch.utils.data.Dataset, Dataset]] = None,
+            optimizer: Optional[torch.optim.Optimizer] = None,
+            data_collator: Optional[typing.Callable] = None,
+            num_shared_layers: Optional[int] = None,
+            lr_scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+            training_data_collator: Optional[typing.Callable] = None,
+    ):
+        super(ChildesPPOTrainer, self).__init__(config, model, ref_model, tokenizer, dataset, optimizer, data_collator,
+                                                num_shared_layers, lr_scheduler, training_data_collator)
 
-    # def _generate_batched(
-    #     self,
-    #     model: PreTrainedModelWrapper,
-    #     query_tensors: List[torch.Tensor],
-    #     length_sampler: Optional[typing.Callable] = None,
-    #     batch_size: int = 4,
-    #     return_prompt: bool = True,
-    #     pad_to_multiple_of: Optional[int] = None,
-    #     remove_padding: bool = True,
-    #     **generation_kwargs,
-    # ):
-    #     outputs = []
-    #
-    #     padding_side_default = self.tokenizer.padding_side
-    #     if not self.is_encoder_decoder:
-    #         self.tokenizer.padding_side = "left"
-    #
-    #     # in case we have fewer examples than bs
-    #     batch_size = min(len(query_tensors), batch_size)
-    #
-    #     for i in range(0, len(query_tensors), batch_size):
-    #         if length_sampler is not None:
-    #             generation_kwargs["max_new_tokens"] = length_sampler()
-    #
-    #         # prevent overflow if query tensors are not even multiple of bs
-    #         end_index = min(len(query_tensors), i + batch_size)
-    #
-    #         batch = query_tensors[i:end_index]
-    #         batch_mask = [torch.ones_like(element) for element in batch]
-    #         inputs = {"input_ids": batch, "attention_mask": batch_mask}
-    #
-    #         padded_inputs = self.tokenizer.pad(
-    #             inputs,
-    #             padding=True,
-    #             max_length=None,
-    #             pad_to_multiple_of=pad_to_multiple_of,
-    #             return_tensors="pt",
-    #         ).to(self.current_device)
-    #
-    #         with unwrap_model_for_generation(model, self.accelerator) as unwrapped_model:
-    #             generations = unwrapped_model.generate(**padded_inputs, **generation_kwargs)
-    #
-    #         for generation, mask in zip(generations, padded_inputs["attention_mask"]):
-    #             if not self.is_encoder_decoder:
-    #                 output = generation[(1 - mask).sum() :]  # remove padding
-    #             else:
-    #                 output = generation
-    #
-    #             if not return_prompt and not self.is_encoder_decoder:
-    #                 output = output[(mask).sum() :]  # remove prompt
-    #
-    #             if remove_padding and self.tokenizer.eos_token_id in output[1:]:
-    #                 pad_mask = output[1:] == self.tokenizer.eos_token_id
-    #                 pad_start = torch.nonzero(pad_mask, as_tuple=False)[0, 0].item() + 1
-    #                 output = output[: pad_start + 1]  # keep the eos token at the end
-    #
-    #             outputs.append(output)
-    #
-    #     self.tokenizer.padding_side = padding_side_default
-    #     return outputs
+    @PPODecorators.empty_device_cache()
+    def train_minibatch(
+        self,
+        old_logprobs: torch.FloatTensor,
+        values: torch.FloatTensor,
+        logprobs: torch.FloatTensor,
+        logits: torch.FloatTensor,
+        vpreds: torch.FloatTensor,
+        mask: torch.LongTensor,
+        advantages: torch.FloatTensor,
+        returns: torch.FloatTensor,
+    ):
+        """
+        Train one PPO minibatch
 
+        Args:
+            logprobs (`torch.FloatTensor`):
+                Log probabilities of the model, shape [mini_batch_size, response_length]
+            values (`torch.FloatTensor`):
+                Values of the value head, shape [mini_batch_size, response_length]
+            query (`torch.LongTensor`):
+                Encoded queries, shape [mini_batch_size, query_length]
+            response (`torch.LongTensor`):
+                Encoded responses, shape [mini_batch_size, response_length]
+            model_input (`torch.LongTensor`):
+                Concatenated queries and responses, shape [mini_batch_size, query_length+response_length]
+
+        Returns:
+            train_stats (dict[str, `torch.Tensor`]):
+                Dictionary of training statistics
+        """
+        self.model.train()
+        loss, train_stats = self.loss(
+            old_logprobs, values, logits, vpreds, logprobs, mask, advantages, returns
+        )
+        self.accelerator.backward(loss)
+        if self.config.max_grad_norm is not None:
+            if self.accelerator.sync_gradients:
+                self.accelerator.clip_grad_norm_(self.model_params, self.config.max_grad_norm)
+        self.optimizer.step()
+        # we call optimizer.zero_grad() every time and let `accelerator` handle accumulation
+        # see https://huggingface.co/docs/accelerate/usage_guides/gradient_accumulation#the-finished-code
+        self.optimizer.zero_grad()
+        return train_stats
+
+    def loss(
+        self,
+        old_logprobs: torch.FloatTensor,
+        values: torch.FloatTensor,
+        logits: torch.FloatTensor,
+        vpreds: torch.FloatTensor,
+        logprobs: torch.FloatTensor,
+        mask: torch.LongTensor,
+        advantages: torch.FloatTensor,
+        returns: torch.FloatTensor,
+    ):
+        """
+        Calculate policy and value losses.
+
+        Args:
+            old_logprobs (`torch.FloatTensor`):
+                Log probabilities of the model, shape (`batch_size`, `response_length`)
+            values (`torch.FloatTensor`):
+                Values of the value head, shape (`batch_size`, `response_length`)
+            rewards (`torch.FloatTensor`):
+                Rewards from the reward model, shape (`batch_size`, `response_length`)
+            logits (`torch.FloatTensor`):
+                Logits of the model, shape (`batch_size`, `response_length`, `vocab_size`)
+            v_pred (`torch.FloatTensor`):
+                Values of the value head, shape (`batch_size`, `response_length`)
+            logprobs (`torch.FloatTensor`):
+                Log probabilities of the model, shape (`batch_size`, `response_length`)
+        """
+
+        vpredclipped = clip_by_value(
+            vpreds,
+            values - self.config.cliprange_value,
+            values + self.config.cliprange_value,
+        )
+
+        vf_losses1 = (vpreds - returns) ** 2
+        vf_losses2 = (vpredclipped - returns) ** 2
+        vf_loss = 0.5 * masked_mean(torch.max(vf_losses1, vf_losses2), mask)
+        vf_clipfrac = masked_mean(torch.gt(vf_losses2, vf_losses1).float(), mask)
+
+        ratio = torch.exp(logprobs - old_logprobs)
+
+        pg_losses = -advantages * ratio
+        pg_losses2 = -advantages * torch.clamp(ratio, 1.0 - self.config.cliprange, 1.0 + self.config.cliprange)
+
+        pg_loss = masked_mean(torch.max(pg_losses, pg_losses2), mask)
+        pg_clipfrac = masked_mean(torch.gt(pg_losses2, pg_losses).float(), mask)
+
+        entropy_loss = - entropy_from_logits(logits).mean()
+
+        loss = pg_loss + self.config.vf_coef * vf_loss + self.config.entropy_reg_coef * entropy_loss
+
+        avg_ratio = masked_mean(ratio, mask).item()
+        if avg_ratio > self.config.ratio_threshold:
+            warnings.warn(
+                f"The average ratio of batch ({avg_ratio:.2f}) exceeds threshold {self.config.ratio_threshold:.2f}. Skipping batch."
+            )
+            pg_loss = pg_loss * 0.0
+            vf_loss = vf_loss * 0.0
+            loss = loss * 0.0
+
+        entropy = masked_mean(entropy_from_logits(logits), mask)
+
+        approxkl = 0.5 * masked_mean((logprobs - old_logprobs) ** 2, mask)
+        policykl = masked_mean(old_logprobs - logprobs, mask)
+
+        return_mean, return_var = masked_mean(returns, mask), masked_var(returns, mask)
+        value_mean, value_var = masked_mean(values, mask), masked_var(values, mask)
+
+        stats = dict(
+            loss=dict(policy=pg_loss.detach(), value=vf_loss.detach(), entropy=entropy_loss.detach(), total=loss.detach()),
+            policy=dict(
+                entropy=entropy.detach(),
+                approxkl=approxkl.detach(),
+                policykl=policykl.detach(),
+                clipfrac=pg_clipfrac.detach(),
+                advantages=advantages.detach(),
+                advantages_mean=masked_mean(advantages, mask).detach(),
+                ratio=ratio.detach(),
+            ),
+            returns=dict(mean=return_mean.detach(), var=return_var.detach()),
+            val=dict(
+                vpred=masked_mean(vpreds, mask).detach(),
+                error=masked_mean((vpreds - returns) ** 2, mask).detach(),
+                clipfrac=vf_clipfrac.detach(),
+                mean=value_mean.detach(),
+                var=value_var.detach(),
+            ),
+        )
+        return loss, flatten_dict(stats)
 
 def build_policy_trainer_dataset(tokenizer, query_data_path, min_length=1, max_length=4):
     data_queries = pd.read_csv(query_data_path)
@@ -246,6 +238,8 @@ class CfPPOConfig(PPOConfig):
     generation_top_k: int = 0
     generation_temperature: float = 1.0
 
+    entropy_reg_coef: float = 0.0,
+
     query_data_path: str = CHILDES_LM_DATA_FILE
     query_min_length: int = 1
     query_max_length: int = 0
@@ -283,7 +277,7 @@ def main():
 
     ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(config.policy_model)
 
-    ppo_trainer = PPOTrainer(config, model, ref_model, tokenizer, dataset=dataset, data_collator=collator)
+    ppo_trainer = ChildesPPOTrainer(config, model, ref_model, tokenizer, dataset=dataset, data_collator=collator)
 
     value_model = AutoModelForSequenceClassification.from_pretrained(config.value_model)
     value_model_tokenizer = AutoTokenizer.from_pretrained(config.value_model)
