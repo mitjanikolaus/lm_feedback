@@ -6,7 +6,6 @@ from typing import Optional, Union, List
 
 import torch
 from accelerate.utils import gather_object
-from trl.commands.scripts.ppo import query_tensors
 from trl.trainer.ppo_config import JSONDict
 
 import wandb
