@@ -303,7 +303,7 @@ class CfPPOConfig(PPOConfig):
     policy_model: str = None
     value_model: str = None
 
-    output_min_length: int = 7
+    output_min_length: int = 3
     output_max_length: int = 20
 
     generation_top_p: float = 1.0
