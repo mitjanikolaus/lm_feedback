@@ -424,7 +424,7 @@ def main():
 
     if config.query_max_length > 0:
         for step, batch in enumerate(tqdm(ppo_trainer.dataloader)):
-            if step % config.eval_freq == 0:
+            if (config.eval_freq != -1) and (step % config.eval_freq == 0):
                 eval_babylm_metrics()
 
             batch, response_tensors, query_tensors = generate(batch)
@@ -436,7 +436,7 @@ def main():
 
     else:
         for step in tqdm(range(config.steps)):
-            if step % config.eval_freq == 0:
+            if (config.eval_freq != -1) and (step % config.eval_freq == 0):
                 eval_babylm_metrics()
 
             batch, response_tensors, query_tensors = generate_without_query()
