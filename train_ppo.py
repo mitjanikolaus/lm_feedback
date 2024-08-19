@@ -3,6 +3,7 @@ import warnings
 from dataclasses import dataclass, field
 
 import torch
+from trl.commands.scripts.ppo import query_tensors
 from trl.trainer.ppo_config import JSONDict
 
 import wandb
@@ -249,6 +250,7 @@ class CfPPOConfig(PPOConfig):
     query_max_length: int = 0
 
     eval_freq: int = 100
+    log_freq: int = 10
 
     log_with: str = "wandb"
 
@@ -302,74 +304,79 @@ def main():
                     tasks=["zorro", "blimp_filtered"],
                     ppo_trainer=ppo_trainer, device=ppo_trainer.accelerator.device.index)
 
+    def generate_without_query():
+        #### Generate text
+        response_tensors = []
+        batch = dict()
+        query_tensors = []
+
+        query = [torch.tensor([tokenizer.bos_token_id], device=ppo_trainer.current_device)] * config.mini_batch_size
+        query_tensors.extend(query)
+        # generate until enough sentences of min lengths
+        while len(response_tensors) < len(query):
+            generation_kwargs["max_new_tokens"] = config.output_max_length
+            responses = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
+            response_tensors.extend(
+                [resp.squeeze() for resp in responses if resp.shape[-1] - 1 >= config.output_min_length])
+
+        response_tensors = response_tensors[:config.mini_batch_size]
+
+        batch["response"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True).strip() for r in response_tensors]
+        batch["query"] = [""] * config.batch_size
+        return batch, response_tensors, query_tensors
+
+    def generate(batch):
+        query_tensors = batch["input_ids"]
+
+        #### Generate text
+        response_tensors = []
+        i = 0
+        while len(response_tensors) < len(query_tensors):
+            query = query_tensors[i % len(query_tensors)]
+            generation_kwargs["max_new_tokens"] = config.output_max_length
+            response = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
+            if response.shape[-1] - 1 >= config.output_min_length:
+                response_tensors.append(response.squeeze())
+            i = i + 1
+
+        batch["response"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True) for r in response_tensors]
+        return batch, response_tensors, query_tensors
+
+    def compute_rewards(batch):
+        texts = [(q + r).strip() for q, r in zip(batch["query"], batch["response"])]
+
+        texts_encoded = value_model_tokenizer(texts, padding=True, truncation=True, return_tensors="pt",
+                                              max_length=config.output_max_length + 10)
+        value_model_outputs = value_model(**texts_encoded)
+        rewards = value_model_outputs.logits.squeeze()
+        rewards = F.sigmoid(rewards)
+        rewards = [torch.tensor(r.item()) for r in rewards]
+
+        return rewards
 
     if config.query_max_length > 0:
         for step, batch in enumerate(tqdm(ppo_trainer.dataloader)):
             if step % config.eval_freq == 0:
                 eval_babylm_metrics()
 
-            query_tensors = batch["input_ids"]
-
-            #### Generate text
-            response_tensors = []
-            i = 0
-            while len(response_tensors) < len(query_tensors):
-                query = query_tensors[i % len(query_tensors)]
-                generation_kwargs["max_new_tokens"] = config.output_max_length
-                response = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
-                if response.shape[-1]-1 >= config.output_min_length:
-                    response_tensors.append(response.squeeze())
-                i = i+1
-
-            batch["response"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True) for r in response_tensors]
-
-            #### Compute reward
-            texts = [(q + r).strip() for q, r in zip(batch["query"], batch["response"])]
-            texts_encoded = value_model_tokenizer(texts, padding=True, truncation=True, return_tensors="pt",
-                                                  max_length=config.output_max_length + 10)
-            value_model_outputs = value_model(**texts_encoded)
-            rewards = value_model_outputs.logits.squeeze()
-            rewards = F.sigmoid(rewards)
-            rewards = [torch.tensor(r.item()) for r in rewards]
-
-            #### Run PPO step
+            batch, response_tensors, query_tensors = generate(batch)
+            rewards = compute_rewards(batch)
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
-            ppo_trainer.log_stats(stats, batch, rewards)
+
+            if step % config.log_freq == 0:
+                ppo_trainer.log_stats(stats, batch, rewards)
 
     else:
         for step in tqdm(range(config.steps)):
             if step % config.eval_freq == 0:
                 eval_babylm_metrics()
 
-            #### Generate text
-            response_tensors = []
-            batch = dict()
-            query_tensors = []
-
-            query = [torch.tensor([tokenizer.bos_token_id], device=ppo_trainer.current_device)] * config.mini_batch_size
-            query_tensors.extend(query)
-            # generate until enough sentences of min lengths
-            while len(response_tensors) < len(query):
-                generation_kwargs["max_new_tokens"] = config.output_max_length
-                responses = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
-                response_tensors.extend([resp.squeeze() for resp in responses if resp.shape[-1]-1 >= config.output_min_length])
-
-            response_tensors = response_tensors[:config.mini_batch_size]
-
-            batch["response"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True).strip() for r in response_tensors]
-
-            #### Compute reward
-            texts = batch["response"]
-            texts_encoded = value_model_tokenizer(texts, padding=True, return_tensors="pt")
-            value_model_outputs = value_model(**texts_encoded)
-            rewards = value_model_outputs.logits.squeeze()
-            rewards = F.sigmoid(rewards)
-            rewards = [torch.tensor(r.item()) for r in rewards]
-
-            #### Run PPO step
+            batch, response_tensors, query_tensors = generate_without_query()
+            rewards = compute_rewards(batch)
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
-            batch["query"] = [""] * config.batch_size
-            ppo_trainer.log_stats(stats, batch, rewards)
+
+            if step % config.log_freq == 0:
+                ppo_trainer.log_stats(stats, batch, rewards)
 
 
 if __name__ == "__main__":
