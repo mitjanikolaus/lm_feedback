@@ -3,7 +3,6 @@ import warnings
 from dataclasses import dataclass, field
 
 import torch
-from trl.commands.scripts.ppo import query_tensors
 from trl.trainer.ppo_config import JSONDict
 
 import wandb
