@@ -2,7 +2,7 @@ import os
 import typing
 import warnings
 from dataclasses import dataclass, field
-from typing import Optional, Union
+from typing import Optional, Union, List
 
 import torch
 from accelerate.utils import gather_object
@@ -44,6 +44,33 @@ class ChildesPPOTrainer(PPOTrainer):
     ):
         super(ChildesPPOTrainer, self).__init__(config, model, ref_model, tokenizer, dataset, optimizer, data_collator,
                                                 num_shared_layers, lr_scheduler, training_data_collator)
+
+    @PPODecorators.empty_device_cache()
+    def step(
+            self,
+            queries: List[torch.LongTensor],
+            responses: List[torch.LongTensor],
+            scores: List[torch.FloatTensor],
+            response_masks: Optional[List[torch.LongTensor]] = None,
+    ):
+        """
+        Run a PPO optimisation step given a list of queries, model responses, and rewards.
+
+        Args:
+            queries (List[`torch.LongTensor`]):
+                List of tensors containing the encoded queries of shape (`query_length`)
+            responses (List[`torch.LongTensor`]):
+                List of tensors containing the encoded responses of shape (`response_length`)
+            scores (List[`torch.FloatTensor`]):
+                List of tensors containing the scores.
+            response_masks (List[`torch.FloatTensor`], *optional*)):
+                List of tensors containing masks of the response tokens.
+
+        Returns:
+            `dict[str, Any]`: A summary of the training statistics
+        """
+        self.current_step += 1
+        return super(ChildesPPOTrainer, self).step(queries, responses, scores, response_masks)
 
     @PPODecorators.empty_device_cache()
     def train_minibatch(
@@ -244,8 +271,6 @@ class ChildesPPOTrainer(PPOTrainer):
             logs["env/reward_mean"] = torch.mean(rewards).cpu().numpy().item()
             logs["env/reward_std"] = torch.std(rewards).cpu().numpy().item()
             logs["env/reward_dist"] = rewards.cpu().numpy()
-
-            self.current_step += 1
 
             self.accelerator.log(
                 logs,
