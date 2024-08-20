@@ -448,7 +448,7 @@ def main():
                    zip(rewards, response_lengths)]
 
         # length reward
-        rewards = [r + config.length_reward_coef * length for r, length in zip(rewards, response_lengths)]
+        rewards = [r + config.length_reward_coef * length if r > 0.5 else r for r, length in zip(rewards, response_lengths)]
 
         return rewards
 
