@@ -1,3 +1,4 @@
+import copy
 import os
 import typing
 import warnings
@@ -360,6 +361,9 @@ def main():
     config = parser.parse_args_into_dataclasses()[0]
 
     if config.log_with == "wandb":
+        wandb_config = copy.deepcopy(config)
+        if wandb_config.score_clip == None:
+            wandb_config.score_clip = -1
         wandb.init(
             name=config.exp_name,
             project="lm_feedback_ppo",
