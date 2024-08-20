@@ -362,7 +362,7 @@ def main():
 
     if config.log_with == "wandb":
         wandb_config = copy.deepcopy(config)
-        if wandb_config.score_clip == None:
+        if wandb_config.score_clip is None:
             wandb_config.score_clip = -1
         wandb.init(
             name=config.exp_name,
