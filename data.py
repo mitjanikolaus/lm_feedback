@@ -7,7 +7,11 @@ from nltk import word_tokenize
 from pytorch_lightning import LightningDataModule
 from sklearn.model_selection import train_test_split
 from tokenizers.implementations import ByteLevelBPETokenizer, BertWordPieceTokenizer
+from tokenizers.models import WordLevel
+from tokenizers.normalizers import StripAccents, NFKC, Lowercase
+from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.processors import TemplateProcessing
+from tokenizers.trainers import WordLevelTrainer
 
 from torch.utils.data import Dataset, DataLoader
 
@@ -15,8 +19,10 @@ from nltk.tokenize import sent_tokenize
 
 import pandas as pd
 from transformers import DataCollatorForLanguageModeling, DataCollatorWithPadding, \
-    GPT2TokenizerFast, TransfoXLTokenizer, BertTokenizerFast
+    GPT2TokenizerFast, TransfoXLTokenizer, BertTokenizerFast, PreTrainedTokenizerFast, PreTrainedTokenizer, \
+    AutoTokenizer
 
+from tokenizers import Tokenizer, normalizers
 from utils import BABYLM_DATA_DIR, SPEAKER_CODES_CAREGIVER, BABYLM_DATA_DIR_CLEAN, BABYLM_DATA_PATH_DEV_CLEAN, \
     DEV_SET, TRAINING_TRACK_STRICT_SMALL, TRAIN_SET, CHILDES_LM_DATA_FILE, CHILDES_RL_DATA_FILE
 
@@ -40,6 +46,8 @@ DATA_FILE_OPEN_SUBTITLES = "open_subtitles"
 DATA_FILE_WIKI = "simple_wiki"
 DATA_FILE_SWITCHBOARD = "switchboard"
 
+VOCAB_MIN_WORD_FREQ = 2
+
 DATA_NAMES = [DATA_FILE_CHILDES, DATA_FILE_BNC, DATA_FILE_GUTENBERG, DATA_FILE_OPEN_SUBTITLES, DATA_FILE_WIKI,
               DATA_FILE_SWITCHBOARD]
 
@@ -59,20 +67,14 @@ def train_tokenizer(save_path, vocab_size, data_iterator=None, data_file_names=N
 
     elif tokenizer_type == "word_level":
         if data_iterator is not None:
-            counter = Counter()
-            for sentence in data_iterator:
-                words = word_tokenize(sentence)
-                counter.update(words)
-            most_common = counter.most_common(vocab_size - len(SPECIAL_TOKENS))
-            vocab_words = SPECIAL_TOKENS + [w for w, c in most_common]
+            tokenizer = Tokenizer(WordLevel(unk_token=UNK_TOKEN))
+            tokenizer.pre_tokenizer = Whitespace()
+            tokenizer.normalizer = normalizers.Sequence([NFKC(), Lowercase()])
 
-            print(f"Least common words included in vocab: {most_common[-10:]}")
-            with open('tokenizers/vocab_word_level.txt', 'w') as file:
-                file.write('\n'.join(vocab_words))
-
-            tokenizer = TransfoXLTokenizer(vocab_file="tokenizers/vocab_word_level.txt", unk_token=UNK_TOKEN,
-                                           eos_token=SEQUENCE_END_TOKEN)
-            tokenizer.save_vocabulary(save_path)
+            trainer = WordLevelTrainer(min_frequency=VOCAB_MIN_WORD_FREQ, special_tokens=SPECIAL_TOKENS, vocab_size=vocab_size)
+            tokenizer.train_from_iterator(data_iterator, trainer=trainer)
+            tokenizer_fast = PreTrainedTokenizerFast(tokenizer_object=tokenizer)
+            tokenizer_fast.save_pretrained(save_path)
         else:
             raise NotImplementedError()
     elif tokenizer_type == "word_piece":
@@ -340,8 +342,8 @@ class ChildesDataModule(LightningDataModule):
 
         tokenizer_dir = os.path.join("tokenizers", f"childes_vocab_{tokenizer_type}_{vocab_size}_{max_num_words}")
         if not (os.path.isfile(os.path.join(tokenizer_dir, "vocab.json")) or os.path.isfile(
-                os.path.join(tokenizer_dir, 'vocab.pkl')) or os.path.isfile(
-            os.path.join(tokenizer_dir, 'vocab.txt'))):
+            os.path.join(tokenizer_dir, 'vocab.txt') or os.path.isfile(
+            os.path.join(tokenizer_dir, 'tokenizer.json')))):
             os.makedirs(tokenizer_dir, exist_ok=True)
             train_tokenizer(tokenizer_dir, vocab_size, data_train, tokenizer_type=tokenizer_type)
 
@@ -356,13 +358,17 @@ class ChildesDataModule(LightningDataModule):
                                 (self.tokenizer.bos_token, self.tokenizer.bos_token_id)],
             )
         elif tokenizer_type == "word_level":
-            os.environ["TRUST_REMOTE_CODE"] = "True"
-            self.tokenizer = TransfoXLTokenizer(pretrained_vocab_file=os.path.join(tokenizer_dir, 'vocab.pkl'),
+            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_dir,
                                                 unk_token=UNK_TOKEN,
                                                 eos_token=SEQUENCE_END_TOKEN, pad_token=PAD_TOKEN,
                                                 bos_token=SEQUENCE_START_TOKEN,
-                                                return_token_type_ids=False)
+                                                )
             self.tokenizer.add_bos_token = True
+            self.tokenizer._tokenizer.post_processor = TemplateProcessing(
+                single=self.tokenizer.bos_token + " $0 " + self.tokenizer.eos_token,
+                special_tokens=[(self.tokenizer.eos_token, self.tokenizer.eos_token_id),
+                                (self.tokenizer.bos_token, self.tokenizer.bos_token_id)],
+            )
         elif tokenizer_type == "word_piece":
             self.tokenizer = BertTokenizerFast(os.path.join(tokenizer_dir, 'vocab.txt'), pad_token=PAD_TOKEN,
                                                sep_token=SEP_TOKEN, unk_token=UNK_TOKEN, cls_token=CLS_TOKEN,
@@ -433,9 +439,8 @@ class ChildesLMDataset(Dataset):
         return len(self.examples)
 
     def __getitem__(self, i):
-        out = self.tokenizer(self.examples[i], add_special_tokens=True, truncation=True, max_length=self.max_len - 2)
-        if self.tokenizer_type == "word_level":
-            out["input_ids"] = [self.tokenizer.bos_token_id] + out["input_ids"] + [self.tokenizer.eos_token_id]
+        out = self.tokenizer(self.examples[i], add_special_tokens=True, truncation=True, max_length=self.max_len - 2,
+                             return_token_type_ids=False)
         return out
 
 
