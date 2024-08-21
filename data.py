@@ -54,8 +54,85 @@ def train_tokenizer(save_path, vocab_size, data_iterator=None, data_file_names=N
     tokenizer.save_model(save_path)
     print(f"Saved trained tokenizer to {save_path}")
 
-# We're not fixing words such as "wanna", as it can be both "want to" and "want a"
-SLANG_EXPRESSIONS = {
+
+CONTRACTIONS = {
+    "i'm": "i am",
+    "I'm": "I am",
+    "it's": "it is",
+    "she's": "she is",
+    "he's": "he is",
+    "one's": "one is",
+    "who's": "who is",
+    "what's": "what is",
+    "how's": "how is",
+    "when's": "when is",
+    "there's": "there is",
+    "that's": "that is",
+    "where's": "where is",
+    "here's": "here is",
+    "why's": "why is",
+    "we're": "they are",
+    "you're": "they are",
+    "yo're": "they are",
+    "they're": "they are",
+    "They're": "they are",
+    "one're": "one are",
+    "what're": "what are",
+    "wha're": "what are",
+    "where're": "where are",
+    "here're": "here are",
+    "there're": "there are",
+    "why're": "why are",
+    "how're": "how are",
+    "who're": "who are",
+    "when're": "when are",
+    "those're": "those are",
+    "these're": "these are",
+    "that're": "that are",
+    "I've": "I have",
+    "i've": "i have",
+    "you've": "you have",
+    "we've": "we have",
+    "they've": "they have",
+    "should've": "should have",
+    "would've": "would have",
+    "could've": "could have",
+    "might've": "might have",
+    "shouldn't've": "should not have",
+    "must've": "must have",
+    "who've": "who have",
+    "what've": "what have",
+    "why've": "why have",
+    "where've": "where have",
+    "how've": "how have",
+    "there've": "there have",
+    "that've": "that have",
+    "had've": "had have",
+    "there'd": "there would",
+    "isn't": "is not",
+    "haven't": "have not",
+    "hasn't": "has not",
+    "didn't": "did not",
+    "don't": "do not",
+    "doesn't": "does not",
+    "what'd": "what would",
+    "I'd": "I would",
+    "i'd": "i would",
+    "you'd": "you would",
+    "she'd": "she would",
+    "She'd": "She would",
+    "he'd": "he would",
+    "it'd": "it would",
+    "one'd": "one would",
+    "we'd": "we would",
+    "they'd": "they would",
+    "who'd": "who would",
+    "why'd": "why would",
+    "where'd": "where would",
+    "how'd": "how would",
+    "that'd": "that would",
+    "this'd": "this would",
+    "when'd": "when would",
     "hasta": "has to",
     "hafta": "have to",
     "hadta": "had to",
@@ -66,20 +143,114 @@ SLANG_EXPRESSIONS = {
     "dere": "there",
     "de": "the",
     "gonna": "going to",
+    "wanna": "want to",
+    "y'wanna": "you want to",
+    "ywanna": "you want to",
+    "dywanna": "do you want to",
+    "dyawanna": "do you want to",
+    "d'y'wanna": "do you want to",
     "anoder": "another",
     "dunno": "don't know",
     "'cause": "because",
+    "wha'do": "what do",
+    "wha'd'you": "what do you",
+    "what'djou": "what do you",
+    "what'dja": "what do you",
+    "y'did": "you did",
+    "whad'dya": "what did you",
+    "d'ya": "do you",
+    "I'll": "I will",
+    "i'll": "i will",
+    "you'll": "you will",
+    "she'll": "she will",
+    "he'll": "he will",
+    "it'll": "it will",
+    "one'll": "one will",
+    "we'll": "we will",
+    "they'll": "they will",
+    "who'll": "who will",
+    "when'll": "when will",
+    "that'll": "that will",
+    "there'll": "there will",
+    "those'll": "those will",
+    "this'll": "this will",
+    "Mommy'll": "Mommy will",
+    "mommy'll": "mommy will",
+    "Mummy'll": "Mummy will",
+    "Mama'll": "Mama will",
+    "mummy'll": "mummy will",
+    "mom'll": "mom will",
+    "Mom'll": "Mom will",
+    "mum'll": "mum will",
+    "mummie'll": "mummie will",
+    "Daddy'll": "Daddy will",
+    "Dad'll": "Dad will",
+    "Dada'll": "Dada will",
+    "daddy'll": "daddy will",
+    "what'll": "what will",
+    "wait'll": "wait until",
+    "won't": "will not",
+    "couldn't": "could not",
+    "aren't": "are not",
+    "can't": "can not",
+    "y'haven't": "you have not",
+    "d'you": "do you",
+    "what'r'ya": "what are you",
+    "lookin'": "looking",
+    "why'nt": "why don't",
+    "c'mon": "come on",
+    "c'mere": "come here",
+    "com'ere": "come here",
+    "come'ere": "come here",
+    "wha'": "what",
+    "wha'doyou": "what do you",
+    "goin'": "going",
+    "workin'": "working",
+    "'em": "them",
+    "cryin'": "crying",
+    "peekin'": "peeking",
+    "y'need": "you need",
+    "y'know": "you know",
+    "s'more": "some more",
+    "s'pose": "suppose",
+    "'kay": "okay",
+    "di'jou": "did you",
+    "combin'": "combining",
+    "shakin'": "shaking",
+    "makin'": "making",
+    "doin'": "doing",
+    "n'": "and",
+    "g'head": "go ahead",
+    "'member": "remember",
+    "'bout": "about",
+    "'round": "around",
+    "jumpin'": "jumping",
+    "put'em": "put them",
+    "push'em": "push them",
+    "whatd'ya": "what do you",
+    "'ere": "here",
+    "y'want": "you want",
+    "y'can": "you can",
+    "what'm": "what am",
+    "who'm": "who am",
+    "y'all": "you all",
+    "s'that": "is that",
+    "sh'we": "shall we",
+    "y'have": "you have",
+    "you'r": "you are",
+    "darlin'": "darling",
+    "what'ya": "what do you",
+    "useta": "used to",
 }
 
 
-def replace_slang_forms(utterance):
-    words = utterance.split(" ")
-    cleaned_utterance = [
-        word if word.replace(",", "") not in SLANG_EXPRESSIONS.keys() else SLANG_EXPRESSIONS[word.replace(",", "")]
+def replace_contractions(words):
+    words = [
+        word if word.replace(",", "") not in CONTRACTIONS.keys() else CONTRACTIONS[word.replace(",", "")]
         for word in words
     ]
-    cleaned_utterance = " ".join(cleaned_utterance)
-    return cleaned_utterance.strip()
+    words = [word.replace("'ll", " will").replace("'ve", " have").replace("n't", " not") for word in words]
+    return words
 
 
 def preprocess_caregiver_utterance(utt):
@@ -87,59 +258,14 @@ def preprocess_caregiver_utterance(utt):
     utt = utt.replace("   ", " ")
     utt = utt.replace("  ", " ")
 
-    utt = replace_slang_forms(utt)
-
-    utt = utt.replace("i'm", "i am")
-    utt = utt.replace("I'm", "I am")
-    utt = utt.replace("it's", "it is")
-    utt = utt.replace("she's", "she is")
-    utt = utt.replace("he's", "he is")
-    utt = utt.replace("one's", "one is")
-    utt = utt.replace("who's", "who is")
-    utt = utt.replace("what's", "what is")
-    utt = utt.replace("how's", "how is")
-    utt = utt.replace("there's", "there is")
-    utt = utt.replace("that's", "that is")
-    utt = utt.replace("where's", "where is")
-    utt = utt.replace("here's", "here is")
     utt = utt.replace("Mommy's here", "Mommy is here")
-    utt = utt.replace("why's", "why is")
-    # utt = utt.replace("", " is")
-    # utt = utt.replace("", " is")
 
+    utt_without_punct = utt[:-1]
+    words = utt_without_punct.split(" ")
+    words = replace_contractions(words)
+    cleaned_utterance = " ".join(words) + utt[-1]
 
-# "cat's in the cupboard"
-# "that one's good"
-
-    utt = utt.replace("we're", "they are")
-    utt = utt.replace("you're", "they are")
-    utt = utt.replace("they're", "they are")
-
-    utt = utt.replace("what're", "what are")
-    utt = utt.replace("where're", "where are")
-    utt = utt.replace("why're", "why are")
-
-
-    utt = utt.replace("I've", "I have")
-    utt = utt.replace("i've", "i have")
-    utt = utt.replace("you've", "you have")
-    utt = utt.replace("we've", "we have")
-    utt = utt.replace("they've", "they have")
-
-    utt = utt.replace("isn't", "is not")
-    utt = utt.replace("didn't", "did not")
-    utt = utt.replace("don't", "do not")
-
-    if "wanna" in utt:
-        print(utt)
-
-    if "'s" in utt:
-        if not "let's" in utt:
-            print(utt)
-    if "'re" in utt:
-        print(utt)
-
-    return utt
+    return cleaned_utterance
 
 
 class ChildesDataModule(LightningDataModule):
