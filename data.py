@@ -350,6 +350,7 @@ class ChildesDataModule(LightningDataModule):
                                                 eos_token=SEQUENCE_END_TOKEN, pad_token=PAD_TOKEN,
                                                 bos_token=SEQUENCE_START_TOKEN,
                                                 return_token_type_ids=False)
+            self.tokenizer.add_bos_token = True
         else:
             raise RuntimeError(f"Unknown tokenizer type: {tokenizer_type}")
 
