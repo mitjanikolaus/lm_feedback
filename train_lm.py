@@ -47,6 +47,7 @@ class BabyLMModel(LightningModule):
         self.vocab_size = self.trainer.datamodule.vocab_size
         self.max_len = self.trainer.datamodule.max_len
         tokenizer = self.trainer.datamodule.tokenizer
+        self.pad_token_id = tokenizer.pad_token_id
 
         if self.model_name == MODEL_BABYLLAMA:
             config = LlamaConfig(**{
@@ -115,6 +116,8 @@ class BabyLMModel(LightningModule):
 
     def forward_step_lm(self, batch):
         if self.model_family == "causal":
+            if "attention_mask" not in batch:
+                batch["attention_mask"] = torch.stack([torch.tensor(input != self.pad_token_id, dtype=torch.int, device=self.device) for input in batch.input_ids])
             out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels)
         else:
             out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
