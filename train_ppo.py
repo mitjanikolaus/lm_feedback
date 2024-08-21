@@ -465,6 +465,9 @@ def main():
             if step % config.log_freq == 0:
                 ppo_trainer.log_stats(stats, batch, rewards)
 
+            if step >= config.steps:
+                break
+
     else:
         for step in tqdm(range(config.steps)):
             if (config.eval_freq != -1) and (step % config.eval_freq == 0):
