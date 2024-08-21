@@ -340,7 +340,7 @@ class ChildesDataModule(LightningDataModule):
 
             data_train = data_train[:target_index - 1]
 
-        tokenizer_dir = os.path.join("tokenizers", f"childes_vocab_{tokenizer_type}_{vocab_size}_{max_num_words}")
+        tokenizer_dir = os.path.join("tokenizers", f"{tokenizer_type}_}vocab_{vocab_size}_{max_num_words}")
         if not (os.path.isfile(os.path.join(tokenizer_dir, "vocab.json")) or os.path.isfile(
             os.path.join(tokenizer_dir, 'vocab.txt') or os.path.isfile(
             os.path.join(tokenizer_dir, 'tokenizer.json')))):
