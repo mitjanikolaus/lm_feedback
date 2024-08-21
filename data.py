@@ -6,7 +6,7 @@ import re
 from nltk import word_tokenize
 from pytorch_lightning import LightningDataModule
 from sklearn.model_selection import train_test_split
-from tokenizers.implementations import ByteLevelBPETokenizer
+from tokenizers.implementations import ByteLevelBPETokenizer, BertWordPieceTokenizer
 from tokenizers.processors import TemplateProcessing
 
 from torch.utils.data import Dataset, DataLoader
@@ -15,7 +15,7 @@ from nltk.tokenize import sent_tokenize
 
 import pandas as pd
 from transformers import DataCollatorForLanguageModeling, DataCollatorWithPadding, \
-    GPT2TokenizerFast, TransfoXLTokenizer
+    GPT2TokenizerFast, TransfoXLTokenizer, BertTokenizerFast
 
 from utils import BABYLM_DATA_DIR, SPEAKER_CODES_CAREGIVER, BABYLM_DATA_DIR_CLEAN, BABYLM_DATA_PATH_DEV_CLEAN, \
     DEV_SET, TRAINING_TRACK_STRICT_SMALL, TRAIN_SET, CHILDES_LM_DATA_FILE, CHILDES_RL_DATA_FILE
@@ -28,6 +28,8 @@ SEQUENCE_END_TOKEN = "<|endoftext|>"
 PAD_TOKEN = "<|pad|>"
 UNK_TOKEN = "<UNK>"
 MASK_TOKEN = "<mask>"
+SEP_TOKEN = "<|sep|>"
+CLS_TOKEN = "<|cls|>"
 
 SPECIAL_TOKENS = [PAD_TOKEN, SEQUENCE_END_TOKEN, SEQUENCE_START_TOKEN, UNK_TOKEN]
 
@@ -73,6 +75,15 @@ def train_tokenizer(save_path, vocab_size, data_iterator=None, data_file_names=N
             tokenizer.save_vocabulary(save_path)
         else:
             raise NotImplementedError()
+    elif tokenizer_type == "word_piece":
+        tokenizer = BertWordPieceTokenizer()
+        if data_iterator is not None:
+            tokenizer.train_from_iterator(data_iterator, vocab_size=vocab_size,
+                                          special_tokens=SPECIAL_TOKENS + [SEP_TOKEN, CLS_TOKEN])
+        else:
+            paths = [os.path.join(BABYLM_DATA_DIR_CLEAN, training_track, f"{name}.train") for name in data_file_names]
+            tokenizer.train(files=paths, vocab_size=vocab_size, special_tokens=SPECIAL_TOKENS)
+        tokenizer.save_model(save_path)
     else:
         raise RuntimeError(f"Unknown tokenizer type: {tokenizer_type}")
 
@@ -329,7 +340,8 @@ class ChildesDataModule(LightningDataModule):
 
         tokenizer_dir = os.path.join("tokenizers", f"childes_vocab_{tokenizer_type}_{vocab_size}_{max_num_words}")
         if not (os.path.isfile(os.path.join(tokenizer_dir, "vocab.json")) or os.path.isfile(
-                os.path.join(tokenizer_dir, 'vocab.pkl'))):
+                os.path.join(tokenizer_dir, 'vocab.pkl')) or os.path.isfile(
+            os.path.join(tokenizer_dir, 'vocab.txt'))):
             os.makedirs(tokenizer_dir, exist_ok=True)
             train_tokenizer(tokenizer_dir, vocab_size, data_train, tokenizer_type=tokenizer_type)
 
@@ -351,11 +363,23 @@ class ChildesDataModule(LightningDataModule):
                                                 bos_token=SEQUENCE_START_TOKEN,
                                                 return_token_type_ids=False)
             self.tokenizer.add_bos_token = True
+        elif tokenizer_type == "word_piece":
+            self.tokenizer = BertTokenizerFast(os.path.join(tokenizer_dir, 'vocab.txt'), pad_token=PAD_TOKEN,
+                                               sep_token=SEP_TOKEN, unk_token=UNK_TOKEN, cls_token=CLS_TOKEN,
+                                               bos_token=SEQUENCE_START_TOKEN, eos_token=SEQUENCE_END_TOKEN)
+            self.tokenizer.add_bos_token = True
+            self.tokenizer._tokenizer.post_processor = TemplateProcessing(
+                single=self.tokenizer.bos_token + " $0 " + self.tokenizer.eos_token,
+                special_tokens=[(self.tokenizer.eos_token, self.tokenizer.eos_token_id),
+                                (self.tokenizer.bos_token, self.tokenizer.bos_token_id)],
+            )
         else:
             raise RuntimeError(f"Unknown tokenizer type: {tokenizer_type}")
 
-        self.dataset_dev = ChildesLMDataset(data_dev, tokenizer=self.tokenizer, tokenizer_type=tokenizer_type, max_len=max_len)
-        self.dataset_train = ChildesLMDataset(data_train, tokenizer=self.tokenizer, tokenizer_type=tokenizer_type, max_len=max_len)
+        self.dataset_dev = ChildesLMDataset(data_dev, tokenizer=self.tokenizer, tokenizer_type=tokenizer_type,
+                                            max_len=max_len)
+        self.dataset_train = ChildesLMDataset(data_train, tokenizer=self.tokenizer, tokenizer_type=tokenizer_type,
+                                              max_len=max_len)
 
         if self.fb:
             print("Loading FB data.. ", end="")
@@ -411,7 +435,7 @@ class ChildesLMDataset(Dataset):
     def __getitem__(self, i):
         out = self.tokenizer(self.examples[i], add_special_tokens=True, truncation=True, max_length=self.max_len - 2)
         if self.tokenizer_type == "word_level":
-            out["input_ids"] = [self.tokenizer.bos_token_id] + out["input_ids"]  + [self.tokenizer.eos_token_id]
+            out["input_ids"] = [self.tokenizer.bos_token_id] + out["input_ids"] + [self.tokenizer.eos_token_id]
         return out
 
 
