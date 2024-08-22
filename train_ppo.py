@@ -338,15 +338,9 @@ def eval_babylm(model, model_args, tasks, ppo_trainer, device, eval_batch_size=1
         if metric_category == "zorro":
             phenomenon = key.split("-")[0]
             metric = key[key.index("-") + 1:]
-            print(metric_category)
-            print(phenomenon)
-            print(metric)
         elif metric_category == "blimp":
             metric = key.replace("_filtered", "")
             phenomenon = BLIMP_METRIC_TO_PHENOMENON[metric]
-            print(metric_category)
-            print(phenomenon)
-            print(metric)
         else:
             raise RuntimeError("Unknown metric key: ", key)
         prefix = metric_category + '/' + phenomenon
