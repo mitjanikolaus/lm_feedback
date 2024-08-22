@@ -5,6 +5,7 @@ import warnings
 from dataclasses import dataclass, field
 from typing import Optional, Union, List
 
+import numpy as np
 import torch
 from accelerate.utils import gather_object
 from trl.trainer.ppo_config import JSONDict
@@ -13,7 +14,7 @@ import wandb
 from tqdm import tqdm
 import pandas as pd
 import torch.nn.functional as F
-from utils import CHILDES_LM_DATA_FILE
+from utils import CHILDES_LM_DATA_FILE, BLIMP_METRIC_TO_PHENOMENON
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, HfArgumentParser, PreTrainedTokenizerBase
 from datasets import Dataset
@@ -321,7 +322,40 @@ def eval_babylm(model, model_args, tasks, ppo_trainer, device, eval_batch_size=1
             cache_requests=True,
         )
 
-    results = {key.replace("_", "/"): val["acc,none"] for key, val in out["results"].items() if "acc,none" in val}
+    results = {
+        "blimp": out["results"].pop("blimp_filtered")["acc,none"],
+        "zorro": out["results"].pop("zorro")["acc,none"]
+    }
+
+    phenomenon_results = dict()
+    for key, val in out["results"].items():
+        val = val["acc,none"]
+        metric_category = key.split("_")[0]
+        key = key[key.index("_") + 1:]
+        if metric_category == "zorro":
+            phenomenon = key.split("-")[0]
+            metric = key[key.index("-") + 1:]
+            print(metric_category)
+            print(phenomenon)
+            print(metric)
+        elif metric_category == "blimp":
+            metric = key.replace("_filtered", "")
+            phenomenon = BLIMP_METRIC_TO_PHENOMENON[metric]
+            print(metric_category)
+            print(phenomenon)
+            print(metric)
+        else:
+            raise RuntimeError("Unknown metric key: ", key)
+        prefix = metric_category + '/' + phenomenon
+        results[prefix+ '-' + metric] = val
+        prefix_phen = metric_category + "_phenomena" + '/' + phenomenon
+        if prefix_phen in phenomenon_results:
+            phenomenon_results[prefix_phen].append(val)
+        else:
+            phenomenon_results[prefix_phen] = [val]
+    phenomenon_results = {key: np.mean(values) for key, values in phenomenon_results.items()}
+    results.update(phenomenon_results)
+
     ppo_trainer.accelerator.log(results, step=ppo_trainer.current_step, log_kwargs={"commit": True})
 
 
