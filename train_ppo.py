@@ -296,10 +296,10 @@ def build_policy_trainer_dataset(tokenizer, query_data_path, min_length=1, max_l
 
     ds = ds.filter(lambda x: len(x["transcript_clean"]) > 10, batched=False)
 
-    input_size = LengthSampler(min_length, max_length)
+    input_size = LengthSampler(min_length, max_length+1)
 
     def tokenize(sample):
-        sample["input_ids"] = tokenizer.encode(sample["transcript_clean"])[: input_size()+2]
+        sample["input_ids"] = tokenizer.encode(sample["transcript_clean"])[: input_size()+1]
         sample["query"] = tokenizer.decode(sample["input_ids"], skip_special_tokens=True)
         return sample
 
