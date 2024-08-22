@@ -2,6 +2,7 @@ import math
 import os
 import warnings
 
+import numpy as np
 import torch
 from pytorch_lightning import LightningModule
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
@@ -116,8 +117,6 @@ class BabyLMModel(LightningModule):
 
     def forward_step_lm(self, batch):
         if self.model_family == "causal":
-            if "attention_mask" not in batch:
-                batch["attention_mask"] = torch.stack([torch.tensor(input != self.pad_token_id, dtype=torch.int, device=self.device) for input in batch.input_ids])
             out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels)
         else:
             out = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask, labels=batch.labels,
@@ -176,7 +175,7 @@ class BabyLMModel(LightningModule):
     def generate_sample_sentences(self):
         tokenizer = self.trainer.datamodule.tokenizer
 
-        generation_prefixes = ["it", "it's", "she", "hello", "do"]
+        generation_prefixes = ["it", "i", "she", "hello", "do"]
         print("\nGenerated samples:")
         for prefix in generation_prefixes:
             sequence = prefix
@@ -187,14 +186,15 @@ class BabyLMModel(LightningModule):
                     inputs = tokenizer(sequence, return_tensors="pt", add_special_tokens=False,
                                        return_token_type_ids=False).to(device)
                 else:
-                    inputs = tokenizer(sequence + MASK_TOKEN, return_tensors="pt", add_special_tokens=False).to(device)
+                    raise NotImplementedError()
 
                 with torch.no_grad():
                     out = self.model(**inputs)
-                predicted_token = out.logits[0, -1].argmax().cpu().item()
-                decoded_token = tokenizer.decode(predicted_token)
-                sequence += decoded_token
-                if decoded_token == SEQUENCE_END_TOKEN:
+                predicted_token = out.logits[0, -1].argmax().cpu()
+                prev_inputs = inputs['input_ids'].cpu().numpy()
+                encoded_seq = np.concatenate((prev_inputs[0], [predicted_token]))
+                sequence = tokenizer.decode(encoded_seq)
+                if predicted_token.item() == tokenizer.eos_token_id:
                     break
 
             print(sequence.replace(SEQUENCE_START_TOKEN, ""))
