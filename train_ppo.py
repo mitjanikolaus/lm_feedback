@@ -282,6 +282,7 @@ class ChildesPPOTrainer(PPOTrainer):
                 log_kwargs={"commit": True},
             )
 
+
 def build_policy_trainer_dataset(tokenizer, query_data_path, min_length=1, max_length=4):
     data_queries = pd.read_csv(query_data_path)
     # data_queries = data_queries.iloc[:1000]
@@ -301,6 +302,8 @@ def build_policy_trainer_dataset(tokenizer, query_data_path, min_length=1, max_l
 
     def tokenize(sample):
         sample["input_ids"] = tokenizer.encode(sample["transcript_clean"])[: input_size()+1]
+        if sample["input_ids"][-1] == tokenizer.eos_token_id:
+            sample["input_ids"] = sample["input_ids"][:-1]
         sample["query"] = tokenizer.decode(sample["input_ids"], skip_special_tokens=True)
         return sample
 
