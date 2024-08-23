@@ -76,15 +76,15 @@ class ChildesPPOTrainer(PPOTrainer):
 
     @PPODecorators.empty_device_cache()
     def train_minibatch(
-        self,
-        old_logprobs: torch.FloatTensor,
-        values: torch.FloatTensor,
-        logprobs: torch.FloatTensor,
-        logits: torch.FloatTensor,
-        vpreds: torch.FloatTensor,
-        mask: torch.LongTensor,
-        advantages: torch.FloatTensor,
-        returns: torch.FloatTensor,
+            self,
+            old_logprobs: torch.FloatTensor,
+            values: torch.FloatTensor,
+            logprobs: torch.FloatTensor,
+            logits: torch.FloatTensor,
+            vpreds: torch.FloatTensor,
+            mask: torch.LongTensor,
+            advantages: torch.FloatTensor,
+            returns: torch.FloatTensor,
     ):
         """
         Train one PPO minibatch
@@ -120,15 +120,15 @@ class ChildesPPOTrainer(PPOTrainer):
         return train_stats
 
     def loss(
-        self,
-        old_logprobs: torch.FloatTensor,
-        values: torch.FloatTensor,
-        logits: torch.FloatTensor,
-        vpreds: torch.FloatTensor,
-        logprobs: torch.FloatTensor,
-        mask: torch.LongTensor,
-        advantages: torch.FloatTensor,
-        returns: torch.FloatTensor,
+            self,
+            old_logprobs: torch.FloatTensor,
+            values: torch.FloatTensor,
+            logits: torch.FloatTensor,
+            vpreds: torch.FloatTensor,
+            logprobs: torch.FloatTensor,
+            mask: torch.LongTensor,
+            advantages: torch.FloatTensor,
+            returns: torch.FloatTensor,
     ):
         """
         Calculate policy and value losses.
@@ -191,7 +191,8 @@ class ChildesPPOTrainer(PPOTrainer):
         value_mean, value_var = masked_mean(values, mask), masked_var(values, mask)
 
         stats = dict(
-            loss=dict(policy=pg_loss.detach(), value=vf_loss.detach(), entropy=entropy_loss.detach(), total=loss.detach()),
+            loss=dict(policy=pg_loss.detach(), value=vf_loss.detach(), entropy=entropy_loss.detach(),
+                      total=loss.detach()),
             policy=dict(
                 entropy=entropy.detach(),
                 approxkl=approxkl.detach(),
@@ -213,11 +214,11 @@ class ChildesPPOTrainer(PPOTrainer):
         return loss, flatten_dict(stats)
 
     def log_stats(
-        self,
-        stats: dict,
-        batch: dict,
-        rewards: typing.List[torch.FloatTensor],
-        columns_to_log: typing.Iterable[str] = ("query", "response"),
+            self,
+            stats: dict,
+            batch: dict,
+            rewards: typing.List[torch.FloatTensor],
+            columns_to_log: typing.Iterable[str] = ("query", "response"),
     ):
         """
         A function that logs all the training stats. Call it at the end of each epoch.
@@ -283,7 +284,7 @@ class ChildesPPOTrainer(PPOTrainer):
             )
 
 
-def build_policy_trainer_dataset(tokenizer, query_data_path, min_length=1, max_length=4):
+def build_policy_trainer_dataset(tokenizer, query_data_path):
     data_queries = pd.read_csv(query_data_path)
     # data_queries = data_queries.iloc[:1000]
 
@@ -293,18 +294,12 @@ def build_policy_trainer_dataset(tokenizer, query_data_path, min_length=1, max_l
 
     data_queries = data_queries[["transcript_clean"]]
 
-    # data_queries = data_queries.iloc[:1000]
     ds = Dataset.from_pandas(data_queries)
 
     ds = ds.filter(lambda x: len(x["transcript_clean"]) > 10, batched=False)
 
-    input_size = LengthSampler(min_length, max_length+1)
-
     def tokenize(sample):
-        sample["input_ids"] = tokenizer.encode(sample["transcript_clean"])[: input_size()+1]
-        if sample["input_ids"][-1] == tokenizer.eos_token_id:
-            sample["input_ids"] = sample["input_ids"][:-1]
-        sample["query"] = tokenizer.decode(sample["input_ids"], skip_special_tokens=True)
+        sample["input_ids"] = tokenizer.encode(sample["transcript_clean"])
         return sample
 
     ds = ds.map(tokenize, batched=False, num_proc=10)
@@ -344,7 +339,7 @@ def eval_babylm(model, model_args, tasks, ppo_trainer, device, eval_batch_size=1
         else:
             raise RuntimeError("Unknown metric key: ", key)
         prefix = metric_category + '/' + phenomenon
-        results[prefix+ '-' + metric] = val
+        results[prefix + '-' + metric] = val
         prefix_phen = metric_category + "_phenomena" + '/' + phenomenon
         if prefix_phen in phenomenon_results:
             phenomenon_results[prefix_phen].append(val)
@@ -404,9 +399,8 @@ def main():
     model = AutoModelForCausalLMWithValueHead.from_pretrained(config.policy_model)
     tokenizer = AutoTokenizer.from_pretrained(config.policy_model)
 
-    if config.query_max_length > 0:
-        dataset = build_policy_trainer_dataset(tokenizer, query_data_path=config.query_data_path,
-                                               min_length=config.query_min_length, max_length=config.query_max_length)
+    if config.query_max_length > 0 or config.lm_loss_coef > 0:
+        dataset = build_policy_trainer_dataset(tokenizer, query_data_path=config.query_data_path)
     else:
         dataset = None
 
@@ -441,7 +435,8 @@ def main():
     def generate_without_query():
         #### Generate text
         batch = dict()
-        query_tensors = [torch.tensor([tokenizer.bos_token_id], device=ppo_trainer.current_device)] * config.mini_batch_size
+        query_tensors = [torch.tensor([tokenizer.bos_token_id],
+                                      device=ppo_trainer.current_device)] * config.mini_batch_size
         generation_kwargs["max_new_tokens"] = config.output_max_length
         responses = ppo_trainer.generate(query_tensors, return_prompt=False, **generation_kwargs)
         response_tensors = [resp for resp in responses]
@@ -450,21 +445,29 @@ def main():
         batch["query"] = [""] * config.batch_size
         return batch, response_tensors, query_tensors
 
-    def generate(batch):
-        query_tensors = batch["input_ids"]
+    def generate(batch, query_length_sampler):
+        caregiver_utts = batch["input_ids"]
+        query_tensors = []
 
         #### Generate text
         response_tensors = []
-        for query in query_tensors:
+        for utt in caregiver_utts:
+            query = utt[: query_length_sampler() + 1]   # +1 for BOS token
+            if query[-1] == tokenizer.eos_token_id:
+                query = query[:-1]
+            query_tensors.append(query)
+
             generation_kwargs["max_new_tokens"] = config.output_max_length
             response = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
             response_tensors.append(response[0])
 
         batch["response"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True) for r in response_tensors]
+        batch["query"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True) for r in query_tensors]
+
         return batch, response_tensors, query_tensors
 
-    def compute_rewards(batch, response_tensors):
-        texts = [(q + r).strip() for q, r in zip(batch["query"], batch["response"])]
+    def compute_rewards(queries, responses, response_tensors):
+        texts = [(q + r).strip() for q, r in zip(queries, responses)]
 
         texts_encoded = value_model_tokenizer(texts, padding=True, truncation=True, return_tensors="pt",
                                               max_length=config.output_max_length + 10)
@@ -479,17 +482,20 @@ def main():
                    zip(rewards, response_lengths)]
 
         # length reward
-        rewards = [r + config.length_reward_coef * length if r > 0.5 else r for r, length in zip(rewards, response_lengths)]
+        rewards = [r + config.length_reward_coef * length if r > 0.5 else r for r, length in
+                   zip(rewards, response_lengths)]
 
         return rewards
 
     if config.query_max_length > 0:
+        query_length_sampler = LengthSampler(config.query_min_length, config.query_max_length + 1)
+
         for step, batch in enumerate(tqdm(ppo_trainer.dataloader, total=config.steps)):
             if (config.eval_freq != -1) and (step % config.eval_freq == 0):
                 eval_babylm_metrics()
 
-            batch, response_tensors, query_tensors = generate(batch)
-            rewards = compute_rewards(batch, response_tensors)
+            batch, response_tensors, query_tensors = generate(batch, query_length_sampler)
+            rewards = compute_rewards(batch["query"], batch["response"], response_tensors)
 
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
 
@@ -505,7 +511,7 @@ def main():
                 eval_babylm_metrics()
 
             batch, response_tensors, query_tensors = generate_without_query()
-            rewards = compute_rewards(batch, response_tensors)
+            rewards = compute_rewards(batch["query"], batch["response"], response_tensors)
 
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
 
