@@ -484,7 +484,7 @@ def main():
         return rewards
 
     if config.query_max_length > 0:
-        for step, batch in enumerate(tqdm(ppo_trainer.dataloader)):
+        for step, batch in enumerate(tqdm(ppo_trainer.dataloader, total=config.steps)):
             if (config.eval_freq != -1) and (step % config.eval_freq == 0):
                 eval_babylm_metrics()
 
