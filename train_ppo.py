@@ -637,9 +637,9 @@ def main():
         if wandb_config.score_clip is None:
             wandb_config.score_clip = -1
         wandb.init(
-            name=config.exp_name,
+            name=wandb_config.exp_name,
             project="lm_feedback_ppo",
-            config=config,
+            config=wandb_config,
         )
 
     model = AutoModelForCausalLMWithValueHead.from_pretrained(config.policy_model)
