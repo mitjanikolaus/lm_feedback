@@ -678,27 +678,14 @@ def main():
         }
         if use_queries:
             caregiver_utts = batch["input_ids"]
-            query_tensors = []
-
-            response_tensors = []
-            for utt in caregiver_utts:
-                query = utt[: query_length_sampler() + 1]  # +1 for BOS token
-                if query[-1] == tokenizer.eos_token_id:
-                    query = query[:-1]
-                query_tensors.append(query)
-
-                response = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
-                response_tensors.append(response[0])
-
-            batch["query"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True) for r in query_tensors]
-
+            batch_query_length = query_length_sampler() + 1  # +1 for BOS token
+            query_tensors = [utt[:batch_query_length] for utt in caregiver_utts]
         else:
-            query_tensors = [torch.tensor([tokenizer.bos_token_id],
-                                          device=ppo_trainer.current_device)] * config.mini_batch_size
-            responses = ppo_trainer.generate(query_tensors, return_prompt=False, **generation_kwargs)
-            response_tensors = [resp for resp in responses]
-            batch["query"] = [""] * config.batch_size
+            bos_tensor = torch.tensor([tokenizer.bos_token_id], device=ppo_trainer.current_device)
+            query_tensors = config.batch_size * [bos_tensor]
 
+        response_tensors = ppo_trainer.generate(query_tensors, return_prompt=False, **generation_kwargs)
+        batch["query"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True) for r in query_tensors]
         batch["response"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True) for r in response_tensors]
 
         return batch, response_tensors, query_tensors
@@ -724,6 +711,7 @@ def main():
 
         return rewards
 
+
     query_length_sampler = LengthSampler(config.query_min_length, config.query_max_length + 1)
     for step, batch in enumerate(tqdm(ppo_trainer.dataloader, total=config.steps)):
         if (config.eval_freq != -1) and (step % config.eval_freq == 0):
@@ -736,13 +724,11 @@ def main():
         stats = ppo_trainer.step(query_tensors, response_tensors, rewards, lm_inputs=batch["input_ids"],
                                  lm_loss_coef=config.lm_loss_coef)
 
-
         if step % config.log_freq == 0:
             ppo_trainer.log_stats(stats, batch, rewards)
 
         if step >= config.steps:
             break
-
 
 if __name__ == "__main__":
     os.makedirs(CKPT_DIR, exist_ok=True)
