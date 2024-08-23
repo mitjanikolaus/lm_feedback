@@ -53,7 +53,7 @@ DATA_NAMES = [DATA_FILE_CHILDES, DATA_FILE_BNC, DATA_FILE_GUTENBERG, DATA_FILE_O
 
 
 def train_tokenizer(save_path, vocab_size, data_iterator=None, data_file_names=None, training_track=None,
-                    tokenizer_type="bpe"):
+                    tokenizer_type="word_level"):
     print(f"Training {tokenizer_type} tokenizer for vocab size {vocab_size} .. ")
     if tokenizer_type == "bpe":
         tokenizer = ByteLevelBPETokenizer()
