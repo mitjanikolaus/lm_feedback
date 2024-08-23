@@ -1,5 +1,6 @@
 import copy
 import os
+import time
 import typing
 import warnings
 from dataclasses import dataclass, field
@@ -21,7 +22,7 @@ from datasets import Dataset
 
 from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead, PreTrainedModelWrapper
 from trl.core import LengthSampler, PPODecorators, entropy_from_logits, masked_mean, clip_by_value, masked_var, \
-    flatten_dict
+    flatten_dict, logprobs_from_logits, stack_dicts, WANDB_PADDING, stats_to_np, convert_to_scalar
 from lm_eval import evaluator
 
 tqdm.pandas()
@@ -54,6 +55,8 @@ class ChildesPPOTrainer(PPOTrainer):
             responses: List[torch.LongTensor],
             scores: List[torch.FloatTensor],
             response_masks: Optional[List[torch.LongTensor]] = None,
+            lm_inputs: Optional[List[torch.LongTensor]] = None,
+            lm_loss_coef: float = 0,
     ):
         """
         Run a PPO optimisation step given a list of queries, model responses, and rewards.
@@ -72,7 +75,241 @@ class ChildesPPOTrainer(PPOTrainer):
             `dict[str, Any]`: A summary of the training statistics
         """
         self.current_step += 1
-        return super(ChildesPPOTrainer, self).step(queries, responses, scores, response_masks)
+        bs = self.config.batch_size
+
+        queries, responses, scores, response_masks = self._step_safety_checker(
+            bs, queries, responses, scores, response_masks
+        )
+        scores = torch.tensor(scores, device=self.current_device)
+        if self.config.use_score_scaling:
+            # Score scaling
+            scores_mean, scores_std = self.running.update(scores)
+            tensor_to_kwargs = dict(dtype=scores.dtype, device=scores.device)
+            score_scaling_factor = self.running.std.to(**tensor_to_kwargs) + torch.finfo(scores.dtype).eps
+            if self.config.use_score_norm:
+                scores = (scores - self.running.mean.to(**tensor_to_kwargs)) / score_scaling_factor
+            else:
+                scores /= score_scaling_factor
+
+        if self.config.score_clip is not None:
+            # Score clipping
+            scores_dtype = scores.dtype
+            scores = torch.clip(scores.float(), -self.config.score_clip, self.config.score_clip).to(dtype=scores_dtype)
+
+        # if we want to push best model to the hub
+        if hasattr(self, "highest_reward"):
+            if self.compare_step % self.config.compare_steps == 0:
+                curr_mean_reward = scores.mean()
+                # if the best reward ever seen
+                if curr_mean_reward > self.highest_reward:
+                    self.highest_reward = curr_mean_reward
+                    # push model to hub
+                    self.push_to_hub(**self.push_to_hub_kwargs)
+            self.compare_step += 1
+
+        timing = dict()
+        t0 = time.time()
+
+        t = time.time()
+
+        model_inputs = self.prepare_model_inputs(queries, responses)
+
+        if self.is_distributed:
+            pad_first = self.tokenizer.padding_side == "left"
+
+            model_inputs["input_ids"] = self.accelerator.pad_across_processes(
+                model_inputs["input_ids"],
+                dim=1,
+                pad_index=self.tokenizer.pad_token_id,
+                pad_first=pad_first,
+            )
+            model_inputs["attention_mask"] = self.accelerator.pad_across_processes(
+                model_inputs["attention_mask"], dim=1, pad_index=0, pad_first=pad_first
+            )
+            if self.is_encoder_decoder:
+                model_inputs["decoder_input_ids"] = self.accelerator.pad_across_processes(
+                    model_inputs["decoder_input_ids"],
+                    dim=1,
+                    pad_index=self.tokenizer.pad_token_id,
+                    pad_first=pad_first,
+                )
+                model_inputs["decoder_attention_mask"] = self.accelerator.pad_across_processes(
+                    model_inputs["decoder_attention_mask"],
+                    dim=1,
+                    pad_index=0,
+                    pad_first=pad_first,
+                )
+
+        model_inputs_names = list(model_inputs.keys())
+
+        full_kl_penalty = self.config.kl_penalty == "full"
+
+        with torch.no_grad():
+            all_logprobs, logits_or_none, values, masks = self.batched_forward_pass(
+                self.model,
+                queries,
+                responses,
+                model_inputs,
+                response_masks=response_masks,
+                return_logits=full_kl_penalty,
+            )
+            with self.optional_peft_ctx():
+                ref_logprobs, ref_logits_or_none, _, _ = self.batched_forward_pass(
+                    self.model if self.is_peft_model else self.ref_model,
+                    queries,
+                    responses,
+                    model_inputs,
+                    return_logits=full_kl_penalty,
+                )
+
+        timing["time/ppo/forward_pass"] = time.time() - t
+
+        with torch.no_grad():
+            t = time.time()
+            if full_kl_penalty:
+                active_full_logprobs = logprobs_from_logits(logits_or_none, None, gather=False)
+                ref_full_logprobs = logprobs_from_logits(ref_logits_or_none, None, gather=False)
+
+                rewards, non_score_reward, kls = self.compute_rewards(
+                    scores, active_full_logprobs, ref_full_logprobs, masks
+                )
+            else:
+                rewards, non_score_reward, kls = self.compute_rewards(scores, all_logprobs, ref_logprobs, masks)
+            timing["time/ppo/compute_rewards"] = time.time() - t
+
+            t = time.time()
+            values, advantages, returns = self.compute_advantages(values, rewards, masks)
+            timing["time/ppo/compute_advantages"] = time.time() - t
+
+        # upcast to float32 to avoid dataset issues
+        batch_dict = {
+            "queries": queries,
+            "responses": responses,
+            "logprobs": all_logprobs.to(torch.float32),
+            "values": values.to(torch.float32),
+            "masks": masks,
+            "advantages": advantages,
+            "returns": returns,
+            "lm_inputs": lm_inputs
+        }
+        batch_dict.update(model_inputs)
+
+        t = time.time()
+        all_stats = []
+        early_stop = False
+        for _ in range(self.config.ppo_epochs):
+            if early_stop:
+                break
+            b_inds = np.random.permutation(bs)
+            for backward_batch_start in range(0, bs, self.config.backward_batch_size):
+                backward_batch_end = backward_batch_start + self.config.backward_batch_size
+                backward_batch_inds = b_inds[backward_batch_start:backward_batch_end]
+
+                for mini_batch_start in range(0, self.config.backward_batch_size, self.config.mini_batch_size):
+                    mini_batch_end = mini_batch_start + self.config.mini_batch_size
+                    mini_batch_inds = backward_batch_inds[mini_batch_start:mini_batch_end]
+                    mini_batch_dict = {
+                        "logprobs": batch_dict["logprobs"][mini_batch_inds],
+                        "values": batch_dict["values"][mini_batch_inds],
+                        "masks": batch_dict["masks"][mini_batch_inds],
+                        # hacks: the queries and responses are ragged.
+                        "queries": [batch_dict["queries"][i] for i in mini_batch_inds],
+                        "responses": [batch_dict["responses"][i] for i in mini_batch_inds],
+                        "advantages": batch_dict["advantages"][mini_batch_inds],
+                        "returns": batch_dict["returns"][mini_batch_inds],
+                        "lm_inputs": [batch_dict["lm_inputs"][i] for i in mini_batch_inds],
+                    }
+                    for k in model_inputs_names:
+                        mini_batch_dict[k] = batch_dict[k][mini_batch_inds]
+                    with self.accelerator.accumulate(self.model):
+                        model_inputs = {k: mini_batch_dict[k] for k in model_inputs_names}
+
+                        logprobs, logits, vpreds, _ = self.batched_forward_pass(
+                            self.model,
+                            mini_batch_dict["queries"],
+                            mini_batch_dict["responses"],
+                            model_inputs,
+                            return_logits=True,
+                        )
+                        train_stats = self.train_minibatch(
+                            mini_batch_dict["logprobs"],
+                            mini_batch_dict["values"],
+                            logprobs,
+                            logits,
+                            vpreds,
+                            mini_batch_dict["masks"],
+                            mini_batch_dict["advantages"],
+                            mini_batch_dict["returns"],
+                            mini_batch_dict["lm_inputs"],
+                            lm_loss_coef,
+                        )
+                        all_stats.append(train_stats)
+
+            # typically, early stopping is done at the epoch level
+            if self.config.early_stopping:
+                policykl = train_stats["policy/policykl"]
+                early_stop = self._early_stop(policykl)
+                if early_stop:
+                    break
+
+        timing["time/ppo/optimize_step"] = time.time() - t
+
+        t = time.time()
+        train_stats = stack_dicts(all_stats)
+
+        # reshape advantages/ratios such that they are not averaged.
+        train_stats["policy/advantages"] = torch.flatten(train_stats["policy/advantages"]).unsqueeze(0)
+        train_stats["policy/advantages"] = torch.nan_to_num(train_stats["policy/advantages"], WANDB_PADDING)
+        train_stats["policy/ratio"] = torch.flatten(train_stats["policy/ratio"]).unsqueeze(0)
+
+        stats = self.record_step_stats(
+            scores=scores,
+            logprobs=all_logprobs,
+            ref_logprobs=ref_logprobs,
+            non_score_reward=non_score_reward,
+            train_stats=train_stats,
+            kl_coef=self.kl_ctl.value,
+            masks=masks,
+            queries=queries,
+            responses=responses,
+            kls=kls,
+        )
+        # Gather/Reduce stats from all processes
+        if self.is_distributed:
+            stats = self.gather_stats(stats)
+        stats = stats_to_np(stats)
+        timing["time/ppo/calc_stats"] = time.time() - t
+        stats["ppo/learning_rate"] = self.optimizer.param_groups[0]["lr"]
+
+        # Update the KL control - multiply the batch_size by the number of processes
+        self.kl_ctl.update(
+            stats["objective/kl"],
+            self.config.batch_size * self.accelerator.num_processes,
+        )
+
+        # Log the total ppo time
+        timing["time/ppo/total"] = time.time() - t0
+        stats.update(timing)
+
+        # post-process stats for tensorboard and other loggers
+        if self.config.log_with != "wandb":
+            stats = convert_to_scalar(stats)
+
+        if self.lr_scheduler is not None:
+            self.lr_scheduler.step()
+
+        return stats
+
+    def train_lm_minibatch(self, lm_inputs):
+        batch = {"input_ids": lm_inputs}
+        batch = self.tokenizer.pad(batch, padding=True, return_tensors="pt")
+        labels = batch["input_ids"].clone()
+        labels[labels == self.tokenizer.pad_token_id] = -100
+        batch["labels"] = labels
+        self.model.train()
+        lm_output = self.model.pretrained_model(**batch)
+        lm_loss = lm_output["loss"]
+        return lm_loss
 
     @PPODecorators.empty_device_cache()
     def train_minibatch(
@@ -85,6 +322,8 @@ class ChildesPPOTrainer(PPOTrainer):
             mask: torch.LongTensor,
             advantages: torch.FloatTensor,
             returns: torch.FloatTensor,
+            lm_inputs: torch.LongTensor,
+            lm_loss_coef: float,
     ):
         """
         Train one PPO minibatch
@@ -109,6 +348,11 @@ class ChildesPPOTrainer(PPOTrainer):
         loss, train_stats = self.loss(
             old_logprobs, values, logits, vpreds, logprobs, mask, advantages, returns
         )
+        if lm_loss_coef > 0:
+            lm_loss = self.train_lm_minibatch(lm_inputs)
+            loss = lm_loss_coef * lm_loss + (1 - lm_loss_coef) * loss
+            train_stats["lm/loss"] = lm_loss.cpu().item()
+
         self.accelerator.backward(loss)
         if self.config.max_grad_norm is not None:
             if self.accelerator.sync_gradients:
@@ -359,6 +603,8 @@ class CfPPOConfig(PPOConfig):
     policy_model: str = None
     value_model: str = None
 
+    lm_loss_coef: float = 0
+
     output_min_length: int = 3
     output_max_length: int = 20
 
@@ -399,10 +645,7 @@ def main():
     model = AutoModelForCausalLMWithValueHead.from_pretrained(config.policy_model)
     tokenizer = AutoTokenizer.from_pretrained(config.policy_model)
 
-    if config.query_max_length > 0 or config.lm_loss_coef > 0:
-        dataset = build_policy_trainer_dataset(tokenizer, query_data_path=config.query_data_path)
-    else:
-        dataset = None
+    dataset = build_policy_trainer_dataset(tokenizer, query_data_path=config.query_data_path)
 
     def collator(data):
         return dict((key, [d[key] for d in data]) for key in data[0])
@@ -414,16 +657,6 @@ def main():
     value_model = AutoModelForSequenceClassification.from_pretrained(config.value_model)
     value_model_tokenizer = AutoTokenizer.from_pretrained(config.value_model)
 
-    generation_kwargs = {
-        "min_length": -1,
-        "top_k": config.generation_top_k,
-        "top_p": config.generation_top_p,
-        "temperature": config.generation_temperature,
-        "do_sample": True,
-        "pad_token_id": tokenizer.pad_token_id,
-        "eos_token_id": tokenizer.eos_token_id,
-    }
-
     def eval_babylm_metrics():
         model.save_pretrained(os.path.join(CKPT_DIR, config.exp_name))
         tokenizer.save_pretrained(os.path.join(CKPT_DIR, config.exp_name))
@@ -432,37 +665,41 @@ def main():
                     tasks=["zorro", "blimp_filtered"],
                     ppo_trainer=ppo_trainer, device=ppo_trainer.accelerator.device.index)
 
-    def generate_without_query():
-        #### Generate text
-        batch = dict()
-        query_tensors = [torch.tensor([tokenizer.bos_token_id],
-                                      device=ppo_trainer.current_device)] * config.mini_batch_size
-        generation_kwargs["max_new_tokens"] = config.output_max_length
-        responses = ppo_trainer.generate(query_tensors, return_prompt=False, **generation_kwargs)
-        response_tensors = [resp for resp in responses]
+    def generate(batch, query_length_sampler, use_queries):
+        generation_kwargs = {
+            "min_length": -1,
+            "max_new_tokens": config.output_max_length,
+            "top_k": config.generation_top_k,
+            "top_p": config.generation_top_p,
+            "temperature": config.generation_temperature,
+            "do_sample": True,
+            "pad_token_id": tokenizer.pad_token_id,
+            "eos_token_id": tokenizer.eos_token_id,
+        }
+        if use_queries:
+            caregiver_utts = batch["input_ids"]
+            query_tensors = []
 
-        batch["response"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True).strip() for r in response_tensors]
-        batch["query"] = [""] * config.batch_size
-        return batch, response_tensors, query_tensors
+            response_tensors = []
+            for utt in caregiver_utts:
+                query = utt[: query_length_sampler() + 1]  # +1 for BOS token
+                if query[-1] == tokenizer.eos_token_id:
+                    query = query[:-1]
+                query_tensors.append(query)
 
-    def generate(batch, query_length_sampler):
-        caregiver_utts = batch["input_ids"]
-        query_tensors = []
+                response = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
+                response_tensors.append(response[0])
 
-        #### Generate text
-        response_tensors = []
-        for utt in caregiver_utts:
-            query = utt[: query_length_sampler() + 1]   # +1 for BOS token
-            if query[-1] == tokenizer.eos_token_id:
-                query = query[:-1]
-            query_tensors.append(query)
+            batch["query"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True) for r in query_tensors]
 
-            generation_kwargs["max_new_tokens"] = config.output_max_length
-            response = ppo_trainer.generate(query, return_prompt=False, **generation_kwargs)
-            response_tensors.append(response[0])
+        else:
+            query_tensors = [torch.tensor([tokenizer.bos_token_id],
+                                          device=ppo_trainer.current_device)] * config.mini_batch_size
+            responses = ppo_trainer.generate(query_tensors, return_prompt=False, **generation_kwargs)
+            response_tensors = [resp for resp in responses]
+            batch["query"] = [""] * config.batch_size
 
         batch["response"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True) for r in response_tensors]
-        batch["query"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True) for r in query_tensors]
 
         return batch, response_tensors, query_tensors
 
@@ -487,36 +724,24 @@ def main():
 
         return rewards
 
-    if config.query_max_length > 0:
-        query_length_sampler = LengthSampler(config.query_min_length, config.query_max_length + 1)
+    query_length_sampler = LengthSampler(config.query_min_length, config.query_max_length + 1)
+    for step, batch in enumerate(tqdm(ppo_trainer.dataloader, total=config.steps)):
+        if (config.eval_freq != -1) and (step % config.eval_freq == 0):
+            eval_babylm_metrics()
 
-        for step, batch in enumerate(tqdm(ppo_trainer.dataloader, total=config.steps)):
-            if (config.eval_freq != -1) and (step % config.eval_freq == 0):
-                eval_babylm_metrics()
+        use_queries = config.query_max_length > 0
+        batch, response_tensors, query_tensors = generate(batch, query_length_sampler, use_queries)
+        rewards = compute_rewards(batch["query"], batch["response"], response_tensors)
 
-            batch, response_tensors, query_tensors = generate(batch, query_length_sampler)
-            rewards = compute_rewards(batch["query"], batch["response"], response_tensors)
+        stats = ppo_trainer.step(query_tensors, response_tensors, rewards, lm_inputs=batch["input_ids"],
+                                 lm_loss_coef=config.lm_loss_coef)
 
-            stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
 
-            if step % config.log_freq == 0:
-                ppo_trainer.log_stats(stats, batch, rewards)
+        if step % config.log_freq == 0:
+            ppo_trainer.log_stats(stats, batch, rewards)
 
-            if step >= config.steps:
-                break
-
-    else:
-        for step in tqdm(range(config.steps)):
-            if (config.eval_freq != -1) and (step % config.eval_freq == 0):
-                eval_babylm_metrics()
-
-            batch, response_tensors, query_tensors = generate_without_query()
-            rewards = compute_rewards(batch["query"], batch["response"], response_tensors)
-
-            stats = ppo_trainer.step(query_tensors, response_tensors, rewards)
-
-            if step % config.log_freq == 0:
-                ppo_trainer.log_stats(stats, batch, rewards)
+        if step >= config.steps:
+            break
 
 
 if __name__ == "__main__":
