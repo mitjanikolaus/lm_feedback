@@ -260,7 +260,7 @@ class BabyLMModel(LightningModule):
 def cli_main():
     checkpoint_callback = ModelCheckpoint(monitor="val_loss", mode="min", save_last=True,
                                           filename="{epoch:02d}-{val_loss:.2f}")
-    early_stop_callback = EarlyStopping(monitor="val_loss", patience=5, verbose=True, mode="min",
+    early_stop_callback = EarlyStopping(monitor="val_loss", patience=10, verbose=True, mode="min",
                                         min_delta=0.01)
     LightningCLI(
         BabyLMModel,
