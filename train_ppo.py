@@ -351,7 +351,7 @@ class ChildesPPOTrainer(PPOTrainer):
         if lm_loss_coef > 0:
             lm_loss = self.train_lm_minibatch(lm_inputs)
             loss = lm_loss_coef * lm_loss + (1 - lm_loss_coef) * loss
-            train_stats["lm/loss"] = lm_loss.cpu().item()
+            train_stats["loss/language_modeling"] = lm_loss.detach()
 
         self.accelerator.backward(loss)
         if self.config.max_grad_norm is not None:
