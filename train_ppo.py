@@ -90,11 +90,6 @@ class ChildesPPOTrainer(PPOTrainer):
             else:
                 scores /= score_scaling_factor
 
-        if self.config.score_clip is not None:
-            # Score clipping
-            scores_dtype = scores.dtype
-            scores = torch.clip(scores.float(), -self.config.score_clip, self.config.score_clip).to(dtype=scores_dtype)
-
         # if we want to push best model to the hub
         if hasattr(self, "highest_reward"):
             if self.compare_step % self.config.compare_steps == 0:
@@ -693,6 +688,10 @@ def main():
         rewards = value_model_outputs.logits.squeeze()
         rewards = F.sigmoid(rewards)
         rewards = [torch.tensor(r.item()) for r in rewards]
+
+        # score clipping (before addition of length reward and rejection sampling!)
+        if config.score_clip is not None:
+            rewards = [torch.clip(reward, -config.score_clip, config.score_clip) for reward in rewards]
 
         # rejection sampling: replace reward with -1 if produced sample is too short
         response_lengths = [len(resp) - 1 for resp in response_tensors]
