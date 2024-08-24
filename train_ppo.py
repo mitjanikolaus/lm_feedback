@@ -607,7 +607,7 @@ class CfPPOConfig(PPOConfig):
 
     lm_data_path: str = CHILDES_LM_TRAIN_DATA_FILE
     query_min_length: int = 1
-    query_max_length: int = 0
+    query_max_length: int = 2
 
     eval_freq: int = 100
     log_freq: int = 20
