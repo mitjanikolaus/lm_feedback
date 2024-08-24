@@ -319,26 +319,47 @@ class ChildesDataModule(LightningDataModule):
 
         self.save_hyperparameters()
 
-        data_df = pd.read_csv(lm_data_path)
-        if capitalize_bos:
-            data_df["transcript_clean"] = data_df["transcript_clean"].apply(lambda x: x[0].capitalize() + x[1:])
-
-        data_df["transcript_clean"] = data_df["transcript_clean"].apply(preprocess_caregiver_utterance)
-
-        data = data_df.transcript_clean.to_list()
-
-        data_train, data_dev = train_test_split(data, test_size=DEV_SET_SIZE, shuffle=True,
-                                                random_state=SPLIT_RANDOM_STATE)
-
+        if ".csv" not in lm_data_path:
+            raise RuntimeError(f"Unexpected file format (not .csv): {lm_data_path}")
+        train_data_path = lm_data_path.replace(".csv", "_train.txt")
+        val_data_path = lm_data_path.replace(".csv", "_val.txt")
         if max_num_words != -1:
-            num_words = 0
-            target_index = 0
-            for target_index, sent in enumerate(data_train):
-                num_words += len(sent.split(" "))
-                if num_words >= max_num_words:
-                    break
+            train_data_path = train_data_path.replace("_train.txt", f"_train_{max_num_words}_words.txt")
+            val_data_path = val_data_path.replace("_val.txt", f"_val_{max_num_words}_words.txt")
+        if not os.path.isfile(train_data_path) or not os.path.isfile(val_data_path):
+            print("Creating train/val datasets")
+            data_df = pd.read_csv(lm_data_path)
+            if capitalize_bos:
+                data_df["transcript_clean"] = data_df["transcript_clean"].apply(lambda x: x[0].capitalize() + x[1:])
 
-            data_train = data_train[:target_index - 1]
+            data_df["transcript_clean"] = data_df["transcript_clean"].apply(preprocess_caregiver_utterance)
+
+            data = data_df.transcript_clean.to_list()
+
+            if max_num_words != -1:
+                num_words = 0
+                target_index = 0
+                for target_index, sent in enumerate(data):
+                    num_words += len(sent.split(" "))
+                    if num_words >= max_num_words:
+                        break
+
+                data = data[:target_index - 1]
+
+            data_train, data_val = train_test_split(data, test_size=DEV_SET_SIZE, shuffle=True,
+                                                    random_state=SPLIT_RANDOM_STATE)
+
+            with open(train_data_path, "w") as file:
+                file.write("\n".join(data_train))
+
+            with open(val_data_path, "w") as file:
+                file.write("\n".join(data_val))
+        else:
+            print(f"Loading train/val datasets from:\n{train_data_path} and\n{val_data_path}")
+            with open(train_data_path, "r") as file:
+                data_train = file.read().split("\n")
+            with open(val_data_path, "r") as file:
+                data_val = file.read().split("\n")
 
         tokenizer_dir = os.path.join("tokenizers", f"{tokenizer_type}_vocab_{vocab_size}_{max_num_words}")
         if not (os.path.isfile(os.path.join(tokenizer_dir, "vocab.json")) or os.path.isfile(
@@ -382,7 +403,7 @@ class ChildesDataModule(LightningDataModule):
         else:
             raise RuntimeError(f"Unknown tokenizer type: {tokenizer_type}")
 
-        self.dataset_dev = ChildesLMDataset(data_dev, tokenizer=self.tokenizer, tokenizer_type=tokenizer_type,
+        self.dataset_dev = ChildesLMDataset(data_val, tokenizer=self.tokenizer, tokenizer_type=tokenizer_type,
                                             max_len=max_len)
         self.dataset_train = ChildesLMDataset(data_train, tokenizer=self.tokenizer, tokenizer_type=tokenizer_type,
                                               max_len=max_len)
