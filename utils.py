@@ -2,6 +2,9 @@ import os.path
 
 DATA_DIR = os.path.expanduser("~/data/lm_feedback/")
 CHILDES_LM_DATA_FILE = os.path.join(DATA_DIR, "caregiver_utterances.csv")
+CHILDES_LM_TRAIN_DATA_FILE = os.path.join(DATA_DIR, "caregiver_utterances_train.txt")
+CHILDES_LM_VAL_DATA_FILE = os.path.join(DATA_DIR, "caregiver_utterances_val.txt")
+
 CHILDES_RL_DATA_FILE = os.path.join(DATA_DIR, "conversations.csv")
 
 BABYLM_DATA_DIR = os.path.expanduser("~/data/babylm_data/")

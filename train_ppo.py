@@ -13,9 +13,8 @@ from trl.trainer.ppo_config import JSONDict
 
 import wandb
 from tqdm import tqdm
-import pandas as pd
 import torch.nn.functional as F
-from utils import CHILDES_LM_DATA_FILE, BLIMP_METRIC_TO_PHENOMENON
+from utils import BLIMP_METRIC_TO_PHENOMENON, CHILDES_LM_TRAIN_DATA_FILE
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, HfArgumentParser, PreTrainedTokenizerBase
 from datasets import Dataset
@@ -528,25 +527,20 @@ class ChildesPPOTrainer(PPOTrainer):
             )
 
 
-def build_policy_trainer_dataset(tokenizer, query_data_path):
-    data_queries = pd.read_csv(query_data_path)
-    # data_queries = data_queries.iloc[:1000]
+def build_policy_trainer_dataset(tokenizer, data_path, min_length):
+    with open(data_path, "r") as file:
+        data = file.read().split("\n")
+    # data = data[:1000]
 
-    if "utt_transcript_clean" in data_queries.columns:
-        data_queries["transcript_clean"] = data_queries["utt_transcript_clean"]
-        del data_queries["utt_transcript_clean"]
-
-    data_queries = data_queries[["transcript_clean"]]
-
-    ds = Dataset.from_pandas(data_queries)
-
-    ds = ds.filter(lambda x: len(x["transcript_clean"]) > 10, batched=False)
+    ds = Dataset.from_list([{"utt": utt} for utt in data])
 
     def tokenize(sample):
-        sample["input_ids"] = tokenizer.encode(sample["transcript_clean"])
+        sample["input_ids"] = tokenizer.encode(sample["utt"])
         return sample
 
     ds = ds.map(tokenize, batched=False, num_proc=10)
+    ds = ds.filter(lambda x: len(x["input_ids"]) > min_length+1, batched=False)
+
     ds.set_format(type="torch")
     return ds
 
@@ -616,7 +610,7 @@ class CfPPOConfig(PPOConfig):
     length_reward_coef: float = 0.0
     score_clip: float = None
 
-    query_data_path: str = CHILDES_LM_DATA_FILE
+    lm_data_path: str = CHILDES_LM_TRAIN_DATA_FILE
     query_min_length: int = 1
     query_max_length: int = 0
 
@@ -645,7 +639,7 @@ def main():
     model = AutoModelForCausalLMWithValueHead.from_pretrained(config.policy_model)
     tokenizer = AutoTokenizer.from_pretrained(config.policy_model)
 
-    dataset = build_policy_trainer_dataset(tokenizer, query_data_path=config.query_data_path)
+    dataset = build_policy_trainer_dataset(tokenizer, data_path=config.lm_data_path, min_length=config.query_min_length)
 
     def collator(data):
         return dict((key, [d[key] for d in data]) for key in data[0])
