@@ -361,7 +361,9 @@ class ChildesDataModule(LightningDataModule):
             with open(val_data_path, "r") as file:
                 data_val = file.read().split("\n")
 
-        tokenizer_dir = os.path.join("tokenizers", f"{tokenizer_type}_vocab_{vocab_size}_{max_num_words}")
+        tokenizer_dir = os.path.join("tokenizers", f"{tokenizer_type}_vocab_{vocab_size}")
+        if max_num_words != -1:
+            tokenizer_dir += f"_{max_num_words}"
         if not (os.path.isfile(os.path.join(tokenizer_dir, "vocab.json")) or os.path.isfile(
             os.path.join(tokenizer_dir, 'vocab.txt') or os.path.isfile(
             os.path.join(tokenizer_dir, 'tokenizer.json')))):
