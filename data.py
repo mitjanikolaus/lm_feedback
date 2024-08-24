@@ -306,9 +306,9 @@ def preprocess_caregiver_utterance(utt):
 
 
 class ChildesDataModule(LightningDataModule):
-    def __init__(self, lm_data_path=CHILDES_LM_DATA_FILE, fb=False, fb_data_path=CHILDES_RL_DATA_FILE, vocab_size=10000,
-                 max_len=128, batch_size=128, num_workers=4, causal=True, capitalize_bos=False, max_num_words=-1,
-                 tokenizer_type="bpe"):
+    def __init__(self, lm_data_path=CHILDES_LM_DATA_FILE, fb=False, fb_data_path=CHILDES_RL_DATA_FILE, vocab_size=5000,
+                 max_len=128, batch_size=256, num_workers=4, causal=True, capitalize_bos=False, max_num_words=-1,
+                 tokenizer_type="word_level"):
         super().__init__()
         self.vocab_size = vocab_size
         self.batch_size = batch_size

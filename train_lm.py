@@ -26,7 +26,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class BabyLMModel(LightningModule):
-    def __init__(self, initial_lr=1e-4, rl_loss_weight=0, model_name=MODEL_GPT2, num_hidden_layers=8,
+    def __init__(self, initial_lr=1e-4, rl_loss_weight=0, model_name=MODEL_GPT2, num_hidden_layers=2,
                  eval_batch_size=1024, hidden_size=512, num_attention_heads=8):
         super().__init__()
 
@@ -260,7 +260,7 @@ class BabyLMModel(LightningModule):
 def cli_main():
     checkpoint_callback = ModelCheckpoint(monitor="val_loss", mode="min", save_last=True,
                                           filename="{epoch:02d}-{val_loss:.2f}")
-    early_stop_callback = EarlyStopping(monitor="val_loss", patience=10, verbose=True, mode="min",
+    early_stop_callback = EarlyStopping(monitor="val_loss", patience=5, verbose=True, mode="min",
                                         min_delta=0.01)
     LightningCLI(
         BabyLMModel,
