@@ -302,7 +302,7 @@ class ChildesPPOTrainer(PPOTrainer):
 
     def train_lm_minibatch(self, lm_inputs):
         batch = {"input_ids": lm_inputs}
-        batch = self.tokenizer.pad(batch, padding=True, return_tensors="pt")
+        batch = self.tokenizer.pad(batch, padding=True, return_tensors="pt").to(self.current_device)
         labels = batch["input_ids"].clone()
         labels[labels == self.tokenizer.pad_token_id] = -100
         batch["labels"] = labels
