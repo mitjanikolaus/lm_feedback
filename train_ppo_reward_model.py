@@ -10,7 +10,6 @@ import torch.nn.functional as F
 import wandb
 from sklearn.model_selection import train_test_split
 from torch import nn
-from tqdm import tqdm
 import pandas as pd
 from transformers.integrations import WandbCallback
 from transformers.trainer_pt_utils import nested_detach
@@ -18,8 +17,6 @@ from trl.trainer.utils import print_rich_table
 
 from data import compute_reward_value
 from utils import CHILDES_RL_DATA_FILE
-
-tqdm.pandas()
 
 from transformers import AutoTokenizer, HfArgumentParser, AutoModelForSequenceClassification, PreTrainedModel, \
     PreTrainedTokenizerBase, TrainerCallback
@@ -228,6 +225,8 @@ def build_reward_model_trainer_datasets(fb_data_path):
         data = []
         for filename in glob.glob(fb_data_path+"/*.csv"):
             data.append(pd.read_csv(os.path.join(fb_data_path, filename)))
+        for filename in glob.glob(fb_data_path+"/*.jsonl"):
+            data.append(pd.read_json(os.path.join(fb_data_path, filename), lines=True, orient="records"))
         data = pd.concat(data, ignore_index=True)
 
     if "response_is_clarification_request" in data.columns and "response_is_acknowledgement" in data.columns:
@@ -238,6 +237,15 @@ def build_reward_model_trainer_datasets(fb_data_path):
         print("Building reward model dataset based on grammaticality")
         data.dropna(subset=["is_grammatical"], inplace=True)
         data["reward"] = data["is_grammatical"].apply(lambda x: (x+1) / 2)  # map to values 0, 0.5, 1
+    elif "sentence_good" in data.columns and "sentence_bad" in data.columns:
+        print("Building reward model dataset based on zorro data")
+        data_good = data[["sentence_good"]].copy()
+        data_good.rename(columns={"sentence_good": "transcript_clean"}, inplace=True)
+        data_good["reward"] = 1
+        data_bad = data[["sentence_bad"]].copy()
+        data_bad.rename(columns={"sentence_bad": "transcript_clean"}, inplace=True)
+        data_bad["reward"] = 0
+        data = pd.concat([data_good, data_bad], ignore_index=True)
     else:
         raise RuntimeError("Unknown data format in ", fb_data_path)
 
