@@ -522,10 +522,9 @@ class ChildesPPOTrainer(PPOTrainer):
             )
 
 
-def build_policy_trainer_dataset(tokenizer, data_path, min_length):
+def build_policy_trainer_dataset(tokenizer, data_path, max_length):
     with open(data_path, "r") as file:
         data = file.read().split("\n")
-    # data = data[:1000]
 
     ds = Dataset.from_list([{"utt": utt} for utt in data])
 
@@ -534,7 +533,7 @@ def build_policy_trainer_dataset(tokenizer, data_path, min_length):
         return sample
 
     ds = ds.map(tokenize, batched=False, num_proc=10)
-    ds = ds.filter(lambda x: len(x["input_ids"]) > min_length+1, batched=False)
+    ds = ds.filter(lambda x: len(x["input_ids"]) > max_length + 2, batched=False)
 
     ds.set_format(type="torch")
     return ds
@@ -634,7 +633,7 @@ def main():
     model = AutoModelForCausalLMWithValueHead.from_pretrained(config.policy_model)
     tokenizer = AutoTokenizer.from_pretrained(config.policy_model)
 
-    dataset = build_policy_trainer_dataset(tokenizer, data_path=config.lm_data_path, min_length=config.query_min_length)
+    dataset = build_policy_trainer_dataset(tokenizer, data_path=config.lm_data_path, max_length=config.query_max_length)
 
     def collator(data):
         return dict((key, [d[key] for d in data]) for key in data[0])
