@@ -91,18 +91,17 @@ class BabyLMModel(LightningModule):
         else:
             raise RuntimeError("Unknown model name: ", self.model_name)
 
-    def get_hf_cktp_path(self, best=False):
-        path = "ckpt_huggingface_best" if best else "ckpt_huggingface_last"
-
+    def get_hf_cktp_path(self):
+        path = "ckpt_huggingface_best"
         if isinstance(self.logger, WandbLogger):
             huggingface_ckpt_dir = os.path.join("lightning_logs", self.logger.version, path)
         else:
             huggingface_ckpt_dir = os.path.join(self.logger.log_dir, path)
         return huggingface_ckpt_dir
 
-    def save_huggingface_checkpoint(self, is_best=False):
+    def save_huggingface_checkpoint(self):
         """Self checkpoint that is compatible with huggingface"""
-        huggingface_ckpt_dir = self.get_hf_cktp_path(best=is_best)
+        huggingface_ckpt_dir = self.get_hf_cktp_path()
         print(f"Saving huggingface-compatible checkpoint to {huggingface_ckpt_dir}")
 
         os.makedirs(huggingface_ckpt_dir, exist_ok=True)
@@ -113,7 +112,6 @@ class BabyLMModel(LightningModule):
 
     def on_fit_start(self) -> None:
         self.best_val_loss = math.inf
-        self.save_huggingface_checkpoint(is_best=True)
 
     def forward_step_lm(self, batch):
         if self.model_family == "causal":
@@ -240,10 +238,7 @@ class BabyLMModel(LightningModule):
         if new_best_val_loss < self.best_val_loss:
             print("saving best checkpoint")
             self.best_val_loss = new_best_val_loss
-            self.save_huggingface_checkpoint(is_best=True)
-        else:
-            print("saving last checkpoint")
-            self.save_huggingface_checkpoint(is_best=False)
+            self.save_huggingface_checkpoint()
 
     def configure_optimizers(self):
         optimizer = AdamW(params=self.model.parameters(), lr=self.hparams.initial_lr)
@@ -258,7 +253,7 @@ class BabyLMModel(LightningModule):
 
 
 def cli_main():
-    checkpoint_callback = ModelCheckpoint(monitor="val_loss", mode="min", save_last=True,
+    checkpoint_callback = ModelCheckpoint(monitor="val_loss", mode="min", save_last=False,
                                           filename="{epoch:02d}-{val_loss:.2f}")
     early_stop_callback = EarlyStopping(monitor="val_loss", patience=10, verbose=True, mode="min",
                                         min_delta=0.01)
