@@ -593,6 +593,9 @@ class CfPPOConfig(PPOConfig):
 
     lm_loss_coef: float = 0
 
+    batch_size: int = 512
+    mini_batch_size: int = 256
+
     output_min_length: int = 3
     output_max_length: int = 20
 
