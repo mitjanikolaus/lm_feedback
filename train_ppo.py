@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Union, List
 
 import numpy as np
+import pandas as pd
 import torch
 from accelerate.utils import gather_object
 from trl.trainer.ppo_config import JSONDict
@@ -502,7 +503,8 @@ class ChildesPPOTrainer(PPOTrainer):
                 )
             elif self.config.log_with == "wandb":
                 table_rows = [list(r) for r in zip(*batch_list, rewards.cpu().tolist())]
-                logs.update({"game_log": wandb.Table(columns=[*columns_to_log, "reward"], rows=table_rows)})
+                df = pd.DataFrame(data=table_rows, columns=[*columns_to_log, "reward"]).sort_values(by="reward")
+                logs.update({"examples": wandb.Html(df.to_html(index=False, border=0))})
 
             logs.update(stats)
 
@@ -515,11 +517,14 @@ class ChildesPPOTrainer(PPOTrainer):
             logs["env/reward_std"] = torch.std(rewards).cpu().numpy().item()
             logs["env/reward_dist"] = rewards.cpu().numpy()
 
-            self.accelerator.log(
-                logs,
-                step=self.current_step,
-                log_kwargs={"commit": True},
-            )
+            if self.config.log_with == "wandb":
+                wandb.log(logs, commit=True)
+            else:
+                self.accelerator.log(
+                    logs,
+                    step=self.current_step,
+                    log_kwargs={"commit": True},
+                )
 
 
 def build_policy_trainer_dataset(tokenizer, data_path, max_length):
@@ -539,7 +544,7 @@ def build_policy_trainer_dataset(tokenizer, data_path, max_length):
     return ds
 
 
-def eval_babylm(model, model_args, tasks, ppo_trainer, device, eval_batch_size=1024):
+def eval_babylm(model, model_args, tasks, ppo_trainer, device, config, eval_batch_size=1024):
     print("Evaluating babylm metrics")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -580,7 +585,10 @@ def eval_babylm(model, model_args, tasks, ppo_trainer, device, eval_batch_size=1
     phenomenon_results = {key: np.mean(values) for key, values in phenomenon_results.items()}
     results.update(phenomenon_results)
 
-    ppo_trainer.accelerator.log(results, step=ppo_trainer.current_step, log_kwargs={"commit": True})
+    if config.log_with == "wandb":
+        wandb.log(results, commit=True)
+    else:
+        ppo_trainer.accelerator.log(results, step=ppo_trainer.current_step, log_kwargs={"commit": True})
 
 
 @dataclass
@@ -654,7 +662,7 @@ def main():
 
         eval_babylm(model="hf", model_args=f"pretrained={os.path.join(CKPT_DIR, config.exp_name)},add_bos_token=True",
                     tasks=["zorro", "blimp_filtered"],
-                    ppo_trainer=ppo_trainer, device=ppo_trainer.accelerator.device.index)
+                    ppo_trainer=ppo_trainer, device=ppo_trainer.accelerator.device.index, config=config)
 
     def generate(batch, query_length_sampler, use_queries):
         generation_kwargs = {
