@@ -11,19 +11,19 @@ index,utt_transcript_clean,response_transcript_clean,is_cr
 463729,but Isabelle lied down and just she slept in the hall.,she slept?,1
 2158750,yes.,we'll have to take the train apart?,0
 2155005,a girl.,is she a little girl or a big girl?,0
-2166638,this has my name on it.,does it?,1
+2166638,this has my name on it.,does it?,0
 4238375,one.,and there's two of them two of them the same huh?,0
 2170118,I'm making little mess in here.,pardon?,1
 332639,I'll look at this book.,well which one would you like to read?,0
 2183620,where the thingy gone?,what thingy?,1
 511602,is this the tallest tree?,you checked the tape right?,0
-2166290,I am.,are you?,1
+2166290,I am.,are you?,0
 2171230,yes.,pardon?,1
 332902,Daisy's outside.,outside?,1
 2126097,yes.,has it come off again?,0
 2131592,I'm just going come in here.,what's that?,0
 2134078,there.,let's see?,0
-355540,yeah we need food.,we do?,1
+355540,yeah we need food.,we do?,0
 4243576,sure.,does it fit in there?,0
 512553,get that from the Easter bunnies.,you wanna read this one?,0
 171656,there it is.,where's the triangle?,0
@@ -52,14 +52,14 @@ index,utt_transcript_clean,response_transcript_clean,is_cr
 167098,"rabbit, chicks.","summer, it's a bumble bee, what does a bee say?",0
 333779,oh yeah!,"yeah, what's your name?",0
 326540,help.,what's wrong?,0
-2200661,I've got to take the edges off.,have you?,1
+2200661,I've got to take the edges off.,have you?,0
 2131526,they have to be over there.,"can you turn the tellie off, Lara?",0
 174364,uhoh.,uhoh do you need my help again?,0
 2181286,it's not ready yet.,do you think baby could have some some of these?,0
 2205740,you.,you want me to pick the toys up?,1
 166886,no.,how about your book of magnets?,0
 4241680,yes.,where's the baby?,0
-2165949,she has.,has she?,1
+2165949,she has.,has she?,0
 184502,yeah.,do you want would you like your tee ball?,0
 2173057,can I do something on one of these?,you what?,1
 2126886,can you let me have a little kettle?,"you wanna clean that, do you?",0
@@ -83,7 +83,7 @@ index,utt_transcript_clean,response_transcript_clean,is_cr
 4276642,I think this guy can come in.,and go where?,0
 2186798,collapse on the beanbag.,do you wanna see if there's something on the telly that you can watch?,0
 2139612,no.,please?,0
-2181604,gone wrong.,has it?,1
+2181604,gone wrong.,has it?,0
 331598,"um, Mom?",mhm?,1
 563379,yep.,you want baseball orange juice or do you want baseball um grape juice?,0
 358188,a carousel.,a ferris wheel?,1
@@ -199,206 +199,206 @@ index,utt_transcript_clean,response_transcript_clean,is_cr
 2127199,Ken.,pardon?,1
 4240004,this one have yellow hair.,how many does that make?,0
 2205105,hiding.,who's hiding?,1
-4273140,how.,what do you think these are?,
-170597,"Mommy, upside down.",yes?,
-174639,blue.,purple and blue hair?,
-511878,box.,now what will we find?,
-2187636,but when they've got some food.,do you think animals will wanna eat plastic containers?,
-344576,we have to.,is this my school work?,
-465420,yeah.,"hm, are you getting a little hungry maybe?",
-157712,"what's that, Mommy?",what?,
-176125,whoa whoa.,first of all what did I tell you about that?,
-4241169,I'm over here.,where?,
-2159499,shall we move somewhere else?,what?,
-339495,no.,a picture of your hand can I trace your hand?,
-4234676,yeah.,are those the only pieces that we have of fence?,
-332918,um what does Daisy and cats like to eat?,what do dogs and cats like to eat?,
-4238584,mouth.,what are these?,
-4234327,get the pig.,the pig gets his own spot too huh?,
-2175885,let me can I get some legs?,can you get some legs?,
-458027,tree's going to be the treadmill.,the tree's going to be the treadmill at the veterinary hospital?,
-2198001,because I don't want you to.,why not?,
-4271997,yeah.,and firefighters don't live in nests?,
-333964,yeah.,"that sounds good, huh?",
-2136657,can you do it?,what?,
-164250,no.,you find them?,
-2143234,I'm not.,what're you doing?,
-2153463,she has to sit there.,"she can sit on the sofa on the armchair, can't she?",
-2160778,it's her birthday.,is it?,
-4268154,yeah.,oh yeah?,
-354674,Mommy?,uh huh?,
-507785,now can you read this one?,ooh what's this book called?,
-2214318,you can't have a picnic with us.,why not?,
-509498,e e.,what is it?,
-2130192,captain.,captain?,
-2127674,I want I wanna get dressed.,do you?,
-559749,this old MacDonald.,what's your favorite favorite favorite car?,
-2187116,can you give me those?,pardon?,
-4243777,yeah.,what do I do with a threader?,
-4236922,I don't know.,are those are those his eyebrows?,
-332002,um I do.,you do who else does?,
-2161744,I don't like them.,you don't like sausages?,
-460404,"why I tear off this flap, Mommy?",why did you tear off this flap?,
-459535,it it.,where are we taking him now?,
-2208785,he cries.,Poor Peter cries?,
-2133826,I'm kind.,you're what?,
-350436,we havta eat.,whada you love to eat?,
-2212420,perhaps perhaps perhaps we can do that.,perhaps what?,
-2160057,there's one more chair left.,one more chair left?,
-4238402,neigh.,what do the sheep sheep say?,
-356743,mm what?,do you remember what it is?,
-334022,a zuper one.,a super duper one?,
-2144017,it's going to melt in my sleeve.,pardon?,
-2171024,you haven't done that or this at all.,I haven't done that or this at all?,
-2221008,"you're the elephant, mummy.",am I?,
-346763,I'm three.,and do you have any cousins?,
-2173294,I've ripped mine up.,have you?,
-2205780,she did it wee on the sandpit.,she did or she didn't?,
-349909,mhm.,and where didjou go when you were in New York?,
-564011,because it's plane's fire truck.,because it's the plane's fire truck?,
-183102,no.,please?,
-2137534,why?,"lady went into the back of it, didn't she?",
-172965,uh black.,no which which guy?,
-2138403,monster there is monsters coming.,is there?,
-330337,yeah.,there is?,
-2169112,you have to lie down on it.,do you?,
-452658,what's happening?,can you leave that there please?,
-342999,mama?,mhm?,
-2166770,that looks like Ribena.,does it?,
-2140642,where's daddy?,pardon?,
-4270315,um we can put the pumpkins by um the daddy.,by the daddy?,
-4235634,a turkey.,a turkey?,
-350476,I didn't know that.,are you going to lie down on the new mattress when it gets here?,
-185681,I see it.,do you see?,
-463439,Daddy?,yes Baby?,
-2189516,my baby's called Satto.,Sicko?,
-4272962,except his blue thing.,what do you think the blue thing is?,
-458048,yeah and real near a farm sometimes?,and what?,
-2174357,yes.,why?,
-2134937,can you do this one?,do you want me to sharpen another one?,
-2197512,you get one of these and get that together.,put it together?,
-2177162,stroke my horsie.,pardon?,
-2212246,I know what we can play.,crayons?,
-2154307,okay.,does that sound alright to you?,
-2136811,do we do this yesterday?,what?,
-183931,wanna make a sock Mommy wanna make a sock?,a what?,
-2195950,you.,me?,
-169016,Mommy?,yes?,
-2137247,you have to.,why?,
-459655,this is tummy yummy medicine.,tummy yummy medicine?,
-2179865,they making tea.,the little boy and girl on the box?,
-4235078,this is a girl.,what makes you say it's a girl?,
-2171200,baby kittens.,baby kittens?,
-2161095,I haven't got bubbly leg.,you haven't got bubbly what?,
-2196759,the road's broken.,"do you wanna go in the box, Lara?",
-169516,yes.,how do you eat your bananas in school?,
-503133,yeah.,"ooh those are real bump, bump, bump, see?",
-2128795,you Abi.,am I?,
-510175,the lamp is outside.,you know who wants to go in the house?,
-344337,mom?,yes honey?,
-570068,no!,why you don't wanna speak nicely?,
-4236911,I want to play farm.,can we give Mr Potato Head a tongue?,
-174635,yes.,well you want wouldja like to give him two colors?,
-508151,play dough?,you wanna get some Play Doh and try and make em?,
-2208955,which one do you wanna do now?,"hey, Lara?",
-448438,here.,"what's there, where is here?",
-562738,I'm dropping.,pardon me?,
-462054,because because he sees the person might eat him.,oh really?,
-573393,letters right there.,"what's, what letter is that?",
-2152781,yes.,what does that mean?,
-2129478,I wanna with you.,you what?,
-463744,why?,what kind of a creature is that?,
-456294,I was looking for a.,was Daddy folding laundry today?,
-4269305,momma?,uhhuh?,
-167227,"no, duck!",does the duck say?,
-566512,oh a turtle.,"oh, am I supposed to be a turtle too?",
-350924,mom?,yes?,
-564565,so how you doin'.,are you finished with this blanket?,
-2180969,we will left you.,you'll leave me?,
-332337,were you reading Mom?,was I reading?,
-455106,yeah.,what words do you think it's hard to say?,
-162703,this.,would you like to put on the purple shoes?,
-2132748,can you read me story about Henrerina.,about Hen who?,
-343951,nothing.,nothing at all?,
-2150967,I wanna play.,do you?,
-2125645,Annie Apple.,did you learn Hairy Hat Mann at nursery this week?,
-2173777,I want a wee wee.,Polly Pocket wants a wee wee now?,
-2221457,is that a fish?,"what's this, Amy?",
-180275,a p.,d o g spells?,
-181924,um this.,blue?,
-2158858,please can we have some lovely chips?,can you have some lovely chips?,
-4270394,mom?,what?,
-4240953,um let's save someone here.,what are you making?,
-2179796,yes.,are you still cold?,
-4238046,mommy I want it to stand up.,would you like me to help you?,
-2161699,the paint dropped off our wall.,the paint dropped off our wall?,
-2154449,it's heavy.,"it is heavy because it's a big book, isn't it?",
-2126095,can you do it?,again?,
-2139473,it's a sharp knife.,is it?,
-242917,open it open.,"it did open, didn't it?",
-2142013,jumped.,uhhuh?,
-4274724,hey.,should we play with Mrs Potato Head?,
-4237134,there is the farm house.,is that the farm house?,
-357485,gas.,oh really?,
-4270372,and you know what?,what?,
-4241979,now take a rest.,tickle you?,
-2190316,risotto.,have you ever tried it?,
-4272029,maybe she got lost in with the daddy the daddy chicken.,maybe she's off with the daddy chicken?,
-2192891,I think another one's poorly.,do you?,
-332232,nothing was costing too much because he split on his head.,oh my gosh is he standing on his head?,
-2183056,do you know what I can do?,what?,
-2141951,there.,is it nice and clean now?,
-351822,please?,Lily we're not having another treat now okay?,
-2140684,mummy?,are you eating this dinner or are you really just playing?,
-467637,I'm store owner.,what else is in your bags?,
-2142558,that's my our bricks.,whose bricks?,
-2169169,no.,please?,
-2147013,the the other baby's gone to bed.,has he?,
-4241446,yeah.,they can't get down?,
-2206861,pardon?,when I've had my lunch would you like to wash up?,
-4238662,because these are too big.,you sure?,
-2155007,big girl.,does she play with you?,
-4272325,I don't want one.,you don't want one?,
-2182408,you don't need anything else.,I don't need anything else?,
-352820,well I have an idea.,yes?,
-178021,that's egg.,"he started to look for some food, wait a minute did we skip a page?",
-562453,is that three?,really?,
-348258,me.,oh that's your microphone?,
-464905,goes on the glass end.,why don't you pick out some clean clothes to wear today?,
-165925,where are my chocolate?,I know but what do I get?,
-2156269,mm.,bit more?,
-171734,a sprinkle donut.,how about this one?,
-332813,Play Doh is yucky.,really?,
-349039,yeah.,what do you live in?,
-4272695,hey look.,are there any eggs in there?,
-2186896,you haven't got any dinner.,who?,
-4276395,there's no.,there's no baby b there aren't any baby birds?,
-4241381,oh what about the pig?,oh boy where's he going to go?,
-2146751,I shall get cross.,doesn't she?,
-4234107,now what do you want to play?,um do you think maybe we can come out into the yard now?,
-357915,responsibility.,he doesn't know the responsibility?,
-160759,over there!,"where, which one?",
-509598,I got dog.,"no we didn't, did we have a dog before?",
-4277428,right now.,right now?,
-2203116,why did you need a bit there?,where?,
-2144186,I am.,you are?,
-341185,um maybe they're giving toys to little boys and little girls.,wow that's some state huh?,
-326244,my microphone.,"there's your box, do you want me to get Ariel, baby Ariel?",
-2219335,just I just say come on.,did you?,
-2196677,haven't got any sizes.,you haven't got any sizes?,
-2139839,it's waky time.,it's what?,
-2169958,mhm mhm mhm.,where are we going this afternoon?,
-572328,a cereal.,cereal?,
-2220113,I'm getting three.,are you?,
-359038,yeah.,you wanna name the teddy Sadiksha too?,
-2198296,because I'm too little.,are you?,
-349937,because I can't hold it.,why don't I hold one of your pieces of Pop Tarts until you finish the other one?,
-572473,"swing now, watch out.","no, no no no no no no, easy swing in the house, right?",
-2167807,I nearly cut my finger.,did you?,
-2196518,it's shut.,"you don't have to, do you?",
-4241337,chicken?,how about that?,
-515568,yeah.,are you sure?,
-2154322,pardon?,who's this?,
+4273140,how.,what do you think these are?,0
+170597,"Mommy, upside down.",yes?,0
+174639,blue.,purple and blue hair?,0
+511878,box.,now what will we find?,0
+2187636,but when they've got some food.,do you think animals will wanna eat plastic containers?,0
+344576,we have to.,is this my school work?,0
+465420,yeah.,"hm, are you getting a little hungry maybe?",0
+157712,"what's that, Mommy?",what?,1
+176125,whoa whoa.,first of all what did I tell you about that?,0
+4241169,I'm over here.,where?,1
+2159499,shall we move somewhere else?,what?,1
+339495,no.,a picture of your hand can I trace your hand?,0
+4234676,yeah.,are those the only pieces that we have of fence?,0
+332918,um what does Daisy and cats like to eat?,what do dogs and cats like to eat?,1
+4238584,mouth.,what are these?,0
+4234327,get the pig.,the pig gets his own spot too huh?,0
+2175885,let me can I get some legs?,can you get some legs?,1
+458027,tree's going to be the treadmill.,the tree's going to be the treadmill at the veterinary hospital?,1
+2198001,because I don't want you to.,why not?,0
+4271997,yeah.,and firefighters don't live in nests?,0
+333964,yeah.,"that sounds good, huh?",0
+2136657,can you do it?,what?,1
+164250,no.,you find them?,0
+2143234,I'm not.,what're you doing?,0
+2153463,she has to sit there.,"she can sit on the sofa on the armchair, can't she?",0
+2160778,it's her birthday.,is it?,0
+4268154,yeah.,oh yeah?,0
+354674,Mommy?,uh huh?,0
+507785,now can you read this one?,ooh what's this book called?,0
+2214318,you can't have a picnic with us.,why not?,0
+509498,e e.,what is it?,0
+2130192,captain.,captain?,1
+2127674,I want I wanna get dressed.,do you?,0
+559749,this old MacDonald.,what's your favorite favorite favorite car?,0
+2187116,can you give me those?,pardon?,1
+4243777,yeah.,what do I do with a threader?,0
+4236922,I don't know.,are those are those his eyebrows?,0
+332002,um I do.,you do who else does?,0
+2161744,I don't like them.,you don't like sausages?,1
+460404,"why I tear off this flap, Mommy?",why did you tear off this flap?,1
+459535,it it.,where are we taking him now?,0
+2208785,he cries.,Poor Peter cries?,1
+2133826,I'm kind.,you're what?,1
+350436,we havta eat.,whada you love to eat?,0
+2212420,perhaps perhaps perhaps we can do that.,perhaps what?,1
+2160057,there's one more chair left.,one more chair left?,1
+4238402,neigh.,what do the sheep sheep say?,0
+356743,mm what?,do you remember what it is?,0
+334022,a zuper one.,a super duper one?,0
+2144017,it's going to melt in my sleeve.,pardon?,1
+2171024,you haven't done that or this at all.,I haven't done that or this at all?,1
+2221008,"you're the elephant, mummy.",am I?,0
+346763,I'm three.,and do you have any cousins?,0
+2173294,I've ripped mine up.,have you?,0
+2205780,she did it wee on the sandpit.,she did or she didn't?,1
+349909,mhm.,and where didjou go when you were in New York?,0
+564011,because it's plane's fire truck.,because it's the plane's fire truck?,1
+183102,no.,please?,0
+2137534,why?,"lady went into the back of it, didn't she?",0
+172965,uh black.,no which which guy?,0
+2138403,monster there is monsters coming.,is there?,0
+330337,yeah.,there is?,0
+2169112,you have to lie down on it.,do you?,0
+452658,what's happening?,can you leave that there please?,0
+342999,mama?,mhm?,0
+2166770,that looks like Ribena.,does it?,0
+2140642,where's daddy?,pardon?,1
+4270315,um we can put the pumpkins by um the daddy.,by the daddy?,1
+4235634,a turkey.,a turkey?,1
+350476,I didn't know that.,are you going to lie down on the new mattress when it gets here?,0
+185681,I see it.,do you see?,1
+463439,Daddy?,yes Baby?,0
+2189516,my baby's called Satto.,Sicko?,1
+4272962,except his blue thing.,what do you think the blue thing is?,0
+458048,yeah and real near a farm sometimes?,and what?,1
+2174357,yes.,why?,0
+2134937,can you do this one?,do you want me to sharpen another one?,0
+2197512,you get one of these and get that together.,put it together?,1
+2177162,stroke my horsie.,pardon?,1
+2212246,I know what we can play.,crayons?,0
+2154307,okay.,does that sound alright to you?,0
+2136811,do we do this yesterday?,what?,1
+183931,wanna make a sock Mommy wanna make a sock?,a what?,1
+2195950,you.,me?,0
+169016,Mommy?,yes?,0
+2137247,you have to.,why?,0
+459655,this is tummy yummy medicine.,tummy yummy medicine?,1
+2179865,they making tea.,the little boy and girl on the box?,1
+4235078,this is a girl.,what makes you say it's a girl?,0
+2171200,baby kittens.,baby kittens?,1
+2161095,I haven't got bubbly leg.,you haven't got bubbly what?,1
+2196759,the road's broken.,"do you wanna go in the box, Lara?",0
+169516,yes.,how do you eat your bananas in school?,0
+503133,yeah.,"ooh those are real bump, bump, bump, see?",0
+2128795,you Abi.,am I?,0
+510175,the lamp is outside.,you know who wants to go in the house?,0
+344337,mom?,yes honey?,0
+570068,no!,why you don't wanna speak nicely?,0
+4236911,I want to play farm.,can we give Mr Potato Head a tongue?,0
+174635,yes.,well you want wouldja like to give him two colors?,0
+508151,play dough?,you wanna get some Play Doh and try and make em?,0
+2208955,which one do you wanna do now?,"hey, Lara?",0
+448438,here.,"what's there, where is here?",0
+562738,I'm dropping.,pardon me?,1
+462054,because because he sees the person might eat him.,oh really?,0
+573393,letters right there.,"what's, what letter is that?",0
+2152781,yes.,what does that mean?,0
+2129478,I wanna with you.,you what?,1
+463744,why?,what kind of a creature is that?,0
+456294,I was looking for a.,was Daddy folding laundry today?,0
+4269305,momma?,uhhuh?,0
+167227,"no, duck!",does the duck say?,0
+566512,oh a turtle.,"oh, am I supposed to be a turtle too?",0
+350924,mom?,yes?,0
+564565,so how you doin'.,are you finished with this blanket?,0
+2180969,we will left you.,you'll leave me?,1
+332337,were you reading Mom?,was I reading?,1
+455106,yeah.,what words do you think it's hard to say?,0
+162703,this.,would you like to put on the purple shoes?,0
+2132748,can you read me story about Henrerina.,about Hen who?,1
+343951,nothing.,nothing at all?,0
+2150967,I wanna play.,do you?,0
+2125645,Annie Apple.,did you learn Hairy Hat Mann at nursery this week?,0
+2173777,I want a wee wee.,Polly Pocket wants a wee wee now?,0
+2221457,is that a fish?,"what's this, Amy?",0
+180275,a p.,d o g spells?,0
+181924,um this.,blue?,0
+2158858,please can we have some lovely chips?,can you have some lovely chips?,0
+4270394,mom?,what?,0
+4240953,um let's save someone here.,what are you making?,0
+2179796,yes.,are you still cold?,0
+4238046,mommy I want it to stand up.,would you like me to help you?,0
+2161699,the paint dropped off our wall.,the paint dropped off our wall?,1
+2154449,it's heavy.,"it is heavy because it's a big book, isn't it?",0
+2126095,can you do it?,again?,0
+2139473,it's a sharp knife.,is it?,0
+242917,open it open.,"it did open, didn't it?",0
+2142013,jumped.,uhhuh?,1
+4274724,hey.,should we play with Mrs Potato Head?,0
+4237134,there is the farm house.,is that the farm house?,0
+357485,gas.,oh really?,0
+4270372,and you know what?,what?,0
+4241979,now take a rest.,tickle you?,0
+2190316,risotto.,have you ever tried it?,0
+4272029,maybe she got lost in with the daddy the daddy chicken.,maybe she's off with the daddy chicken?,1
+2192891,I think another one's poorly.,do you?,0
+332232,nothing was costing too much because he split on his head.,oh my gosh is he standing on his head?,0
+2183056,do you know what I can do?,what?,0
+2141951,there.,is it nice and clean now?,0
+351822,please?,Lily we're not having another treat now okay?,0
+2140684,mummy?,are you eating this dinner or are you really just playing?,0
+467637,I'm store owner.,what else is in your bags?,0
+2142558,that's my our bricks.,whose bricks?,1
+2169169,no.,please?,0
+2147013,the the other baby's gone to bed.,has he?,0
+4241446,yeah.,they can't get down?,0
+2206861,pardon?,when I've had my lunch would you like to wash up?,0
+4238662,because these are too big.,you sure?,0
+2155007,big girl.,does she play with you?,0
+4272325,I don't want one.,you don't want one?,1
+2182408,you don't need anything else.,I don't need anything else?,1
+352820,well I have an idea.,yes?,0
+178021,that's egg.,"he started to look for some food, wait a minute did we skip a page?",0
+562453,is that three?,really?,0
+348258,me.,oh that's your microphone?,0
+464905,goes on the glass end.,why don't you pick out some clean clothes to wear today?,0
+165925,where are my chocolate?,I know but what do I get?,0
+2156269,mm.,bit more?,0
+171734,a sprinkle donut.,how about this one?,0
+332813,Play Doh is yucky.,really?,0
+349039,yeah.,what do you live in?,0
+4272695,hey look.,are there any eggs in there?,0
+2186896,you haven't got any dinner.,who?,0
+4276395,there's no.,there's no baby b there aren't any baby birds?,1
+4241381,oh what about the pig?,oh boy where's he going to go?,0
+2146751,I shall get cross.,doesn't she?,0
+4234107,now what do you want to play?,um do you think maybe we can come out into the yard now?,0
+357915,responsibility.,he doesn't know the responsibility?,0
+160759,over there!,"where, which one?",1
+509598,I got dog.,"no we didn't, did we have a dog before?",0
+4277428,right now.,right now?,0
+2203116,why did you need a bit there?,where?,1
+2144186,I am.,you are?,0
+341185,um maybe they're giving toys to little boys and little girls.,wow that's some state huh?,0
+326244,my microphone.,"there's your box, do you want me to get Ariel, baby Ariel?",0
+2219335,just I just say come on.,did you?,0
+2196677,haven't got any sizes.,you haven't got any sizes?,1
+2139839,it's waky time.,it's what?,1
+2169958,mhm mhm mhm.,where are we going this afternoon?,0
+572328,a cereal.,cereal?,1
+2220113,I'm getting three.,are you?,0
+359038,yeah.,you wanna name the teddy Sadiksha too?,0
+2198296,because I'm too little.,are you?,0
+349937,because I can't hold it.,why don't I hold one of your pieces of Pop Tarts until you finish the other one?,0
+572473,"swing now, watch out.","no, no no no no no no, easy swing in the house, right?",0
+2167807,I nearly cut my finger.,did you?,0
+2196518,it's shut.,"you don't have to, do you?",0
+4241337,chicken?,how about that?,0
+515568,yeah.,are you sure?,0
+2154322,pardon?,who's this?,0
 335096,look!,what am I looking at?,
 2166739,I don't want them.,don't you?,
 2212871,yes.,is it like a hoover?,
