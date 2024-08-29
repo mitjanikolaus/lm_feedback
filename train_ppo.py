@@ -518,7 +518,7 @@ class ChildesPPOTrainer(PPOTrainer):
             logs["env/reward_dist"] = rewards.cpu().numpy()
 
             if self.config.log_with == "wandb":
-                wandb.log(logs, commit=True)
+                wandb.log(logs, commit=True, step=self.current_step)
             else:
                 self.accelerator.log(
                     logs,
@@ -586,7 +586,7 @@ def eval_babylm(model, model_args, tasks, ppo_trainer, device, config, eval_batc
     results.update(phenomenon_results)
 
     if config.log_with == "wandb":
-        wandb.log(results, commit=True)
+        wandb.log(results, commit=True, step=ppo_trainer.current_step)
     else:
         ppo_trainer.accelerator.log(results, step=ppo_trainer.current_step, log_kwargs={"commit": True})
 
