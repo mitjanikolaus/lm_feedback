@@ -2,7 +2,7 @@ import glob
 import os
 import warnings
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, Union, Callable, List, Dict, Tuple, Any
 
 import torch
@@ -218,39 +218,59 @@ class CFRewardTrainer(RewardTrainer):
         return loss
 
 
-def build_reward_model_trainer_datasets(fb_data_path):
-    if os.path.isfile(fb_data_path):
-        data = pd.read_csv(fb_data_path)
-    else:
-        data = []
-        for filename in glob.glob(fb_data_path+"/*.csv"):
-            data.append(pd.read_csv(os.path.join(fb_data_path, filename)))
-        for filename in glob.glob(fb_data_path+"/*.jsonl"):
-            data.append(pd.read_json(os.path.join(fb_data_path, filename), lines=True, orient="records"))
-        data = pd.concat(data, ignore_index=True)
+def build_reward_model_trainer_datasets(fb_data_paths):
+    all_data = []
+    for fb_data_path in fb_data_paths:
+        if os.path.isfile(fb_data_path):
+            print(f"Loading {fb_data_path}")
+            if fb_data_path.endswith(".csv"):
+                data = pd.read_csv(fb_data_path)
+            elif fb_data_path.endswith(".txt"):
+                with open(fb_data_path, "r") as f:
+                    data = f.read().splitlines()
+                data = pd.DataFrame({"transcript_clean": data, "reward": [1] * len(data)})
+            else:
+                raise RuntimeError(f"Unknown data format: {fb_data_path}")
+        else:
+            data = []
+            filenames = list(glob.glob(fb_data_path+"/*.csv")) + list(glob.glob(fb_data_path+"/*.jsonl"))
+            print(f"Loading files from : {fb_data_path}: {filenames}")
 
-    if "response_is_clarification_request" in data.columns and "response_is_acknowledgement" in data.columns:
-        print("Building reward model dataset based on CR and ACK data")
-        data["reward"] = data.apply(compute_reward_value, axis=1)
-        data["transcript_clean"] = data["utt_transcript_clean"]
-    elif "is_grammatical" in data.columns:
-        print("Building reward model dataset based on grammaticality")
-        data.dropna(subset=["is_grammatical"], inplace=True)
-        data["reward"] = data["is_grammatical"].apply(lambda x: (x+1) / 2)  # map to values 0, 0.5, 1
-    elif "sentence_good" in data.columns and "sentence_bad" in data.columns:
-        print("Building reward model dataset based on zorro data")
-        data_good = data[["sentence_good"]].copy()
-        data_good.rename(columns={"sentence_good": "transcript_clean"}, inplace=True)
-        data_good["reward"] = 1
-        data_bad = data[["sentence_bad"]].copy()
-        data_bad.rename(columns={"sentence_bad": "transcript_clean"}, inplace=True)
-        data_bad["reward"] = 0
-        data = pd.concat([data_good, data_bad], ignore_index=True)
-    else:
-        raise RuntimeError("Unknown data format in ", fb_data_path)
+            for filename in filenames:
+                if filename.endswith(".csv"):
+                    data.append(pd.read_csv(os.path.join(fb_data_path, filename)))
+                elif filename.endswith(".jsonl"):
+                    data.append(pd.read_json(os.path.join(fb_data_path, filename), lines=True, orient="records"))
+            data = pd.concat(data, ignore_index=True)
 
-    data = data[["transcript_clean", "reward"]]
-    data_train, data_test = train_test_split(data, test_size=TEST_SET_SIZE, shuffle=True,
+        if "transcript_clean" in data.columns and "reward" in data.columns:
+            pass
+        elif "response_is_clarification_request" in data.columns and "response_is_acknowledgement" in data.columns:
+            print("Building reward model dataset based on CR and ACK data")
+            data["reward"] = data.apply(compute_reward_value, axis=1)
+            data["transcript_clean"] = data["utt_transcript_clean"]
+        elif "is_grammatical" in data.columns:
+            print("Building reward model dataset based on grammaticality")
+            data.dropna(subset=["is_grammatical"], inplace=True)
+            data["reward"] = data["is_grammatical"].apply(lambda x: (x+1) / 2)  # map to values 0, 0.5, 1
+        elif "sentence_good" in data.columns and "sentence_bad" in data.columns:
+            print("Building reward model dataset based on zorro data")
+            data_good = data[["sentence_good"]].copy()
+            data_good.rename(columns={"sentence_good": "transcript_clean"}, inplace=True)
+            data_good["reward"] = 1
+            data_bad = data[["sentence_bad"]].copy()
+            data_bad.rename(columns={"sentence_bad": "transcript_clean"}, inplace=True)
+            data_bad["reward"] = 0
+            data = pd.concat([data_good, data_bad], ignore_index=True)
+        else:
+            raise RuntimeError("Unknown data format in ", fb_data_path)
+
+        data = data[["transcript_clean", "reward"]]
+        all_data.append(data)
+
+    all_data = pd.concat(all_data, ignore_index=True)
+
+    data_train, data_test = train_test_split(all_data, test_size=TEST_SET_SIZE, shuffle=True,
                                             random_state=SPLIT_RANDOM_STATE)
 
     ds_train = Dataset.from_pandas(data_train)
@@ -265,7 +285,7 @@ def build_reward_model_trainer_datasets(fb_data_path):
 
 @dataclass
 class CFRewardTrainerConfig(RewardConfig):
-    data_path: str = CHILDES_RL_DATA_FILE
+    data_paths: List[str] = field(default_factory=lambda: [CHILDES_RL_DATA_FILE])
 
 
 def main():
@@ -330,7 +350,7 @@ def main():
     ################
     # Dataset
     ################
-    raw_datasets = build_reward_model_trainer_datasets(trainer_config.data_path)
+    raw_datasets = build_reward_model_trainer_datasets(trainer_config.data_paths)
 
     def preprocess_function(sample):
         tokenized = tokenizer(sample["transcript_clean"], truncation=True, max_length=trainer_config.max_length)
