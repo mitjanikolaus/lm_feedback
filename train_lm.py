@@ -10,7 +10,7 @@ from pytorch_lightning.cli import LightningCLI
 from pytorch_lightning.loggers import WandbLogger
 from transformers import LlamaForCausalLM, LlamaConfig, GPT2Config
 from torch.optim import AdamW
-from data import ChildesDataModule, SEQUENCE_START_TOKEN, MASK_TOKEN, SEQUENCE_END_TOKEN
+from data import ChildesDataModule, SEQUENCE_START_TOKEN
 
 from lm_eval import evaluator
 

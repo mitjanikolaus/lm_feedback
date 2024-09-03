@@ -1,14 +1,12 @@
 import os
-from collections import Counter
 from pathlib import Path
 import re
 
-from nltk import word_tokenize
 from pytorch_lightning import LightningDataModule
 from sklearn.model_selection import train_test_split
 from tokenizers.implementations import ByteLevelBPETokenizer, BertWordPieceTokenizer
 from tokenizers.models import WordLevel
-from tokenizers.normalizers import StripAccents, NFKC, Lowercase
+from tokenizers.normalizers import NFKC, Lowercase
 from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.processors import TemplateProcessing
 from tokenizers.trainers import WordLevelTrainer
@@ -19,8 +17,7 @@ from nltk.tokenize import sent_tokenize
 
 import pandas as pd
 from transformers import DataCollatorForLanguageModeling, DataCollatorWithPadding, \
-    GPT2TokenizerFast, TransfoXLTokenizer, BertTokenizerFast, PreTrainedTokenizerFast, PreTrainedTokenizer, \
-    AutoTokenizer
+    GPT2TokenizerFast, BertTokenizerFast, PreTrainedTokenizerFast, AutoTokenizer
 
 from tokenizers import Tokenizer, normalizers
 from utils import BABYLM_DATA_DIR, SPEAKER_CODES_CAREGIVER, BABYLM_DATA_DIR_CLEAN, BABYLM_DATA_PATH_DEV_CLEAN, \
@@ -290,7 +287,7 @@ def replace_contractions(words):
     return words
 
 
-def preprocess_caregiver_utterance(utt):
+def preprocess_childes_utterance(utt):
     utt = utt.strip()
     utt = utt.replace("   ", " ")
     utt = utt.replace("  ", " ")
@@ -305,8 +302,19 @@ def preprocess_caregiver_utterance(utt):
     return cleaned_utterance
 
 
+def load_data(data_path, capitalize_bos):
+    data_df = pd.read_csv(data_path)
+    if capitalize_bos:
+        data_df["transcript_clean"] = data_df["transcript_clean"].apply(lambda x: x[0].capitalize() + x[1:])
+
+    data_df["transcript_clean"] = data_df["transcript_clean"].apply(preprocess_childes_utterance)
+
+    data = data_df.transcript_clean.to_list()
+    return data
+
+
 class ChildesDataModule(LightningDataModule):
-    def __init__(self, lm_data_path=CHILDES_LM_DATA_FILE, fb=False, fb_data_path=CHILDES_RL_DATA_FILE, vocab_size=5000,
+    def __init__(self, lm_data_path=CHILDES_LM_DATA_FILE, additional_train=None, fb=False, fb_data_path=CHILDES_RL_DATA_FILE, vocab_size=5000,
                  max_len=128, batch_size=256, num_workers=4, causal=True, capitalize_bos=False, max_num_words=-1,
                  tokenizer_type="word_level"):
         super().__init__()
@@ -316,6 +324,7 @@ class ChildesDataModule(LightningDataModule):
         self.num_workers = num_workers
         self.fb = fb
         self.tokenizer_type = tokenizer_type
+        self.additional_train = additional_train
 
         self.save_hyperparameters()
 
@@ -328,14 +337,7 @@ class ChildesDataModule(LightningDataModule):
             val_data_path = val_data_path.replace("_val.txt", f"_val_{max_num_words}_words.txt")
         if not os.path.isfile(train_data_path) or not os.path.isfile(val_data_path):
             print("Creating train/val datasets")
-            data_df = pd.read_csv(lm_data_path)
-            if capitalize_bos:
-                data_df["transcript_clean"] = data_df["transcript_clean"].apply(lambda x: x[0].capitalize() + x[1:])
-
-            data_df["transcript_clean"] = data_df["transcript_clean"].apply(preprocess_caregiver_utterance)
-
-            data = data_df.transcript_clean.to_list()
-
+            data = load_data(lm_data_path, capitalize_bos)
             if max_num_words != -1:
                 num_words = 0
                 target_index = 0
@@ -404,6 +406,10 @@ class ChildesDataModule(LightningDataModule):
             )
         else:
             raise RuntimeError(f"Unknown tokenizer type: {tokenizer_type}")
+
+        if self.additional_train is not None:
+            data_add = load_data(self.additional_train, capitalize_bos)
+            data_train = data_train + data_add
 
         self.dataset_dev = ChildesLMDataset(data_val, tokenizer=self.tokenizer, tokenizer_type=tokenizer_type,
                                             max_len=max_len)
