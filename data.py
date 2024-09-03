@@ -619,13 +619,13 @@ class BabyLMDataset(Dataset):
         return out
 
 
-def compute_reward_value(utt):
+def compute_reward_value(utt, reward_cr=0, reward_ack=1, reward_other=0.5):
     if utt.response_is_clarification_request:
-        return 0
+        return reward_cr
     elif utt.response_is_acknowledgement:
-        return 1
+        return reward_ack
     else:
-        return 0.5
+        return reward_other
 
 
 class FeedbackDataset(Dataset):

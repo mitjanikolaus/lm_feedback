@@ -25,7 +25,6 @@ from datasets import Dataset, DatasetDict
 from trl import RewardConfig, ModelConfig, \
     get_quantization_config, get_kbit_device_map, RewardTrainer, get_peft_config
 
-
 os.environ["WANDB_LOG_MODEL"] = "false"
 
 TEST_SET_SIZE = 0.1
@@ -34,7 +33,7 @@ SPLIT_RANDOM_STATE = 1
 
 def compute_mse(eval_pred) -> Dict[str, float]:
     predictions, labels = eval_pred
-    mse = ((predictions.squeeze() - labels.squeeze())**2).mean().item()
+    mse = ((predictions.squeeze() - labels.squeeze()) ** 2).mean().item()
 
     return {"mse": mse}
 
@@ -84,8 +83,6 @@ class CFRewardDataCollatorWithPadding:
         return batch
 
 
-
-
 class WandbPredictionProgressCallback(WandbCallback):
     """Custom WandbCallback to log model predictions during training.
 
@@ -129,7 +126,8 @@ class WandbPredictionProgressCallback(WandbCallback):
             predictions = self.trainer.predict(self.sample_dataset)
 
             table = defaultdict(list)
-            table["text"] = self.sample_dataset["transcript_clean"]#self.tokenizer.batch_decode(inputs["input_ids"], skip_special_tokens=True)
+            table["text"] = self.sample_dataset[
+                "transcript_clean"]  # self.tokenizer.batch_decode(inputs["input_ids"], skip_special_tokens=True)
             table["reward"] = self.sample_dataset["reward"].cpu()
             table["logits"] = predictions.predictions.squeeze()
 
@@ -142,21 +140,21 @@ class WandbPredictionProgressCallback(WandbCallback):
 class CFRewardTrainer(RewardTrainer):
 
     def __init__(
-        self,
-        model: Optional[Union[PreTrainedModel, nn.Module]] = None,
-        args: Optional[RewardConfig] = None,
-        train_dataset: Optional[Dataset] = None,
-        eval_dataset: Optional[Union[Dataset, Dict[str, Dataset]]] = None,
-        tokenizer: Optional[PreTrainedTokenizerBase] = None,
-        model_init: Optional[Callable[[], PreTrainedModel]] = None,
-        callbacks: Optional[List[TrainerCallback]] = None,
-        optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (
-            None,
-            None,
-        ),
-        preprocess_logits_for_metrics: Optional[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = None,
-        max_length: Optional[int] = None,
-        peft_config: Optional[Dict] = None,
+            self,
+            model: Optional[Union[PreTrainedModel, nn.Module]] = None,
+            args: Optional[RewardConfig] = None,
+            train_dataset: Optional[Dataset] = None,
+            eval_dataset: Optional[Union[Dataset, Dict[str, Dataset]]] = None,
+            tokenizer: Optional[PreTrainedTokenizerBase] = None,
+            model_init: Optional[Callable[[], PreTrainedModel]] = None,
+            callbacks: Optional[List[TrainerCallback]] = None,
+            optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (
+                    None,
+                    None,
+            ),
+            preprocess_logits_for_metrics: Optional[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = None,
+            max_length: Optional[int] = None,
+            peft_config: Optional[Dict] = None,
     ):
         data_collator = CFRewardDataCollatorWithPadding(tokenizer, max_length=max_length)
         compute_metrics = compute_mse
@@ -169,11 +167,11 @@ class CFRewardTrainer(RewardTrainer):
         return super(RewardTrainer, self).evaluate(*args, **kwargs)
 
     def prediction_step(
-        self,
-        model: Union[PreTrainedModel, nn.Module],
-        inputs: Dict[str, Union[torch.Tensor, Any]],
-        prediction_loss_only: bool,
-        ignore_keys: Optional[List[str]] = None,
+            self,
+            model: Union[PreTrainedModel, nn.Module],
+            inputs: Dict[str, Union[torch.Tensor, Any]],
+            prediction_loss_only: bool,
+            ignore_keys: Optional[List[str]] = None,
     ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
         inputs = self._prepare_inputs(inputs)
 
@@ -193,12 +191,11 @@ class CFRewardTrainer(RewardTrainer):
 
         return loss, outputs, labels
 
-
     def compute_loss(
-        self,
-        model: Union[PreTrainedModel, nn.Module],
-        inputs: Dict[str, Union[torch.Tensor, Any]],
-        return_outputs=False,
+            self,
+            model: Union[PreTrainedModel, nn.Module],
+            inputs: Dict[str, Union[torch.Tensor, Any]],
+            return_outputs=False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, torch.Tensor]]]:
         logits = model(
             input_ids=inputs["input_ids"],
@@ -218,7 +215,7 @@ class CFRewardTrainer(RewardTrainer):
         return loss
 
 
-def build_reward_model_trainer_datasets(fb_data_paths):
+def build_reward_model_trainer_datasets(fb_data_paths, reward_cr, reward_ack, reward_other):
     all_data = []
     for fb_data_path in fb_data_paths:
         if os.path.isfile(fb_data_path):
@@ -233,7 +230,7 @@ def build_reward_model_trainer_datasets(fb_data_paths):
                 raise RuntimeError(f"Unknown data format: {fb_data_path}")
         else:
             data = []
-            filenames = list(glob.glob(fb_data_path+"/*.csv")) + list(glob.glob(fb_data_path+"/*.jsonl"))
+            filenames = list(glob.glob(fb_data_path + "/*.csv")) + list(glob.glob(fb_data_path + "/*.jsonl"))
             print(f"Loading files from : {fb_data_path}: {filenames}")
 
             for filename in filenames:
@@ -247,12 +244,14 @@ def build_reward_model_trainer_datasets(fb_data_paths):
             pass
         elif "response_is_clarification_request" in data.columns and "response_is_acknowledgement" in data.columns:
             print("Building reward model dataset based on CR and ACK data")
-            data["reward"] = data.apply(compute_reward_value, axis=1)
+            data["reward"] = data.apply(
+                compute_reward_value, axis=1, reward_cr=reward_cr, reward_ack=reward_ack, reward_other=reward_other
+            )
             data["transcript_clean"] = data["utt_transcript_clean"]
         elif "is_grammatical" in data.columns:
             print("Building reward model dataset based on grammaticality")
             data.dropna(subset=["is_grammatical"], inplace=True)
-            data["reward"] = data["is_grammatical"].apply(lambda x: (x+1) / 2)  # map to values 0, 0.5, 1
+            data["reward"] = data["is_grammatical"].apply(lambda x: (x + 1) / 2)  # map to values 0, 0.5, 1
         elif "sentence_good" in data.columns and "sentence_bad" in data.columns:
             print("Building reward model dataset based on zorro data")
             data_good = data[["sentence_good"]].copy()
@@ -271,7 +270,7 @@ def build_reward_model_trainer_datasets(fb_data_paths):
     all_data = pd.concat(all_data, ignore_index=True)
 
     data_train, data_test = train_test_split(all_data, test_size=TEST_SET_SIZE, shuffle=True,
-                                            random_state=SPLIT_RANDOM_STATE)
+                                             random_state=SPLIT_RANDOM_STATE)
 
     ds_train = Dataset.from_pandas(data_train)
     ds_test = Dataset.from_pandas(data_test)
@@ -286,6 +285,10 @@ def build_reward_model_trainer_datasets(fb_data_paths):
 @dataclass
 class CFRewardTrainerConfig(RewardConfig):
     data_paths: List[str] = field(default_factory=lambda: [CHILDES_RL_DATA_FILE])
+
+    reward_cr: float = 0
+    reward_ack: float = 1
+    reward_other: float = 0.5
 
 
 def main():
@@ -350,7 +353,10 @@ def main():
     ################
     # Dataset
     ################
-    raw_datasets = build_reward_model_trainer_datasets(trainer_config.data_paths)
+    raw_datasets = build_reward_model_trainer_datasets(
+        trainer_config.data_paths, reward_cr=trainer_config.reward_cr, reward_ack=trainer_config.reward_ack,
+        reward_other=trainer_config.reward_other
+    )
 
     def preprocess_function(sample):
         tokenized = tokenizer(sample["transcript_clean"], truncation=True, max_length=trainer_config.max_length)
