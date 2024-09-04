@@ -367,8 +367,8 @@ class ChildesDataModule(LightningDataModule):
         if max_num_words != -1:
             tokenizer_dir += f"_{max_num_words}"
         if not (os.path.isfile(os.path.join(tokenizer_dir, "vocab.json")) or os.path.isfile(
-            os.path.join(tokenizer_dir, 'vocab.txt') or os.path.isfile(
-            os.path.join(tokenizer_dir, 'tokenizer.json')))):
+            os.path.join(tokenizer_dir, 'vocab.txt')) or os.path.isfile(
+            os.path.join(tokenizer_dir, 'tokenizer.json'))):
             os.makedirs(tokenizer_dir, exist_ok=True)
             train_tokenizer(tokenizer_dir, vocab_size, data_train, tokenizer_type=tokenizer_type)
 
