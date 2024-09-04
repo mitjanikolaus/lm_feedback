@@ -15,6 +15,7 @@ from data import ChildesDataModule, SEQUENCE_START_TOKEN
 from lm_eval import evaluator
 
 from model import ChildesGPT
+from utils import BLIMP_METRIC_TO_PHENOMENON
 
 os.environ["WANDB_PROJECT"] = "lm_feedback_baseline"
 
@@ -209,17 +210,36 @@ class BabyLMModel(LightningModule):
                 cache_requests=True,
             )
 
+        results = {
+            "blimp": out["results"].pop("blimp_filtered")["acc,none"],
+            "zorro": out["results"].pop("zorro")["acc,none"]
+        }
+
+        phenomenon_results = dict()
         for key, val in out["results"].items():
-            if key == "blimp_filtered":
-                self.log(key, val["acc,none"], prog_bar=True, sync_dist=True)
-            if key == "zorro":
-                self.log(key, val["acc,none"], prog_bar=True, sync_dist=True)
-            elif key.startswith("blimp_"):
-                self.log(key.replace("blimp_", "blimp/"), val["acc,none"])
-            elif key.startswith("zorro_"):
-                self.log(key.replace("zorro_", "zorro/"), val["acc,none"])
+            val = val["acc,none"]
+            metric_category = key.split("_")[0]
+            key = key[key.index("_") + 1:]
+            if metric_category == "zorro":
+                phenomenon = key.split("-")[0]
+                metric = key[key.index("-") + 1:]
+            elif metric_category == "blimp":
+                metric = key.replace("_filtered", "")
+                phenomenon = BLIMP_METRIC_TO_PHENOMENON[metric]
             else:
-                self.log(key, val["acc,none"])
+                raise RuntimeError("Unknown metric key: ", key)
+            prefix = metric_category + '/' + phenomenon
+            results[prefix + '-' + metric] = val
+            prefix_phen = metric_category + "_phenomena" + '/' + phenomenon
+            if prefix_phen in phenomenon_results:
+                phenomenon_results[prefix_phen].append(val)
+            else:
+                phenomenon_results[prefix_phen] = [val]
+        phenomenon_results = {key: np.mean(values) for key, values in phenomenon_results.items()}
+        results.update(phenomenon_results)
+
+        self.log_dict(results)
+
 
     def on_validation_epoch_end(self):
         self.generate_sample_sentences()
