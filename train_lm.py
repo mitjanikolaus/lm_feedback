@@ -211,9 +211,10 @@ class BabyLMModel(LightningModule):
             )
 
         results = {
-            "blimp": out["results"].pop("blimp_filtered")["acc,none"],
             "zorro": out["results"].pop("zorro")["acc,none"]
         }
+        if "blimp_filtered" in out["results"]:
+            results["blimp"]: out["results"].pop("blimp_filtered")["acc,none"]
 
         phenomenon_results = dict()
         for key, val in out["results"].items():
