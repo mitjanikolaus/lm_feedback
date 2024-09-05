@@ -1,14 +1,16 @@
 import os.path
 
-DATA_DIR = os.path.expanduser("~/data/lm_feedback/")
+BASE_DATA_DIR = os.getenv("DATA_DIR", default=os.path.expanduser("~/data"))
+DATA_DIR = os.path.join(BASE_DATA_DIR, "lm_feedback")
+
 CHILDES_LM_DATA_FILE = os.path.join(DATA_DIR, "caregiver_utterances.csv")
 CHILDES_LM_TRAIN_DATA_FILE = os.path.join(DATA_DIR, "caregiver_utterances_train.txt")
 CHILDES_LM_VAL_DATA_FILE = os.path.join(DATA_DIR, "caregiver_utterances_val.txt")
 
 CHILDES_RL_DATA_FILE = os.path.join(DATA_DIR, "conversations.csv")
 
-BABYLM_DATA_DIR = os.path.expanduser("~/data/babylm_data/")
-BABYLM_DATA_DIR_CLEAN = os.path.expanduser("~/data/babylm_data_clean/")
+BABYLM_DATA_DIR = os.path.join(BASE_DATA_DIR, "babylm_data")
+BABYLM_DATA_DIR_CLEAN = os.path.join(BASE_DATA_DIR, "babylm_data_clean")
 
 TRAIN_SET = "train"
 DEV_SET = "dev"
