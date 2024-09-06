@@ -288,7 +288,7 @@ def cli_main():
             "max_steps": 150000,
             "accumulate_grad_batches": 1,
             "val_check_interval": 0.25,
-            "log_every_n_steps": 1000,
+            "log_every_n_steps": 100,
             "num_sanity_val_steps": 3,
             "limit_val_batches": 100,
             "precision": "16-mixed",
