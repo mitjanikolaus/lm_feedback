@@ -43,8 +43,6 @@ class BabyLMModel(LightningModule):
         self.num_attention_heads = num_attention_heads
         self.model_family = "causal" if model_name in MODELS_CAUSAL else "masked"
 
-        self.eval_blimp_on_next_val = True
-
     def configure_model(self):
         self.vocab_size = self.trainer.datamodule.vocab_size
         self.max_len = self.trainer.datamodule.max_len
@@ -245,13 +243,7 @@ class BabyLMModel(LightningModule):
     def on_validation_epoch_end(self):
         self.generate_sample_sentences()
         if not self.trainer.state.stage == 'sanity_check':
-
-            if self.eval_blimp_on_next_val:
-                self.eval_babylm(["blimp_filtered", "zorro"])
-                self.eval_blimp_on_next_val = False
-            else:
-                self.eval_babylm(["zorro"])
-                self.eval_blimp_on_next_val = True
+            self.eval_babylm(["blimp_filtered", "zorro"])
 
     def on_save_checkpoint(self, checkpoint):
         new_best_val_loss = checkpoint["callbacks"]["EarlyStopping{'monitor': 'val_loss', 'mode': 'min'}"][
