@@ -1,12 +1,7 @@
-import glob
 import os
-import pickle
-
 import pandas as pd
-import nltk
-from tqdm import tqdm
+from utils import CHILDES_RL_DATA_FILE, DATA_DIR
 
-from utils import BABYLM_DATA_DIR, CHILDES_LM_DATA_FILE, CHILDES_LM_TRAIN_DATA_FILE, CHILDES_RL_DATA_FILE, DATA_DIR
 
 if __name__ == '__main__':
     conversations = pd.read_csv(CHILDES_RL_DATA_FILE)
