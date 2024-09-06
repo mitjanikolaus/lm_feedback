@@ -1,6 +1,7 @@
 import math
 import os
 import warnings
+from typing import List
 
 import numpy as np
 import torch
@@ -15,20 +16,22 @@ from data import ChildesDataModule, SEQUENCE_START_TOKEN
 from lm_eval import evaluator
 
 from model import ChildesGPT
-from utils import BLIMP_METRIC_TO_PHENOMENON
+from utils import parse_babylm_metrics_results
 
 os.environ["WANDB_PROJECT"] = "lm_feedback_baseline"
 
 MODEL_BABYLLAMA = "babyllama"
 MODEL_GPT2 = "gpt2"
 MODELS_CAUSAL = [MODEL_BABYLLAMA, MODEL_GPT2]
+DEFAULT_EVAL_METRICS = ["blimp_filtered", "zorro"]
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class BabyLMModel(LightningModule):
     def __init__(self, initial_lr=1e-4, rl_loss_weight=0, model_name=MODEL_GPT2, num_hidden_layers=2,
-                 eval_batch_size=1024, hidden_size=512, num_attention_heads=8):
+                 eval_batch_size=1024, hidden_size=512, num_attention_heads=8,
+                 eval_metrics=None):
         super().__init__()
 
         self.save_hyperparameters()
@@ -38,6 +41,7 @@ class BabyLMModel(LightningModule):
         self.num_hidden_layers = num_hidden_layers
 
         self.eval_batch_size = eval_batch_size
+        self.eval_metrics = eval_metrics if eval_metrics else DEFAULT_EVAL_METRICS
 
         self.hidden_size = hidden_size
         self.num_attention_heads = num_attention_heads
@@ -196,54 +200,24 @@ class BabyLMModel(LightningModule):
 
             print(sequence.replace(SEQUENCE_START_TOKEN, ""))
 
-    def eval_babylm(self, tasks):
+    def eval_babylm(self):
         print("Evaluating babylm metrics")
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             out = evaluator.simple_evaluate(
                 self.model,
-                tasks=tasks,
+                tasks=self.eval_metrics,
                 batch_size=self.eval_batch_size,
                 device=f"cuda:{self.trainer.device_ids[0]}",
                 cache_requests=True,
             )
-
-        results = {
-            "zorro": out["results"].pop("zorro")["acc,none"]
-        }
-        if "blimp_filtered" in out["results"]:
-            results["blimp"] = out["results"].pop("blimp_filtered")["acc,none"]
-
-        phenomenon_results = dict()
-        for key, val in out["results"].items():
-            val = val["acc,none"]
-            metric_category = key.split("_")[0]
-            key = key[key.index("_") + 1:]
-            if metric_category == "zorro":
-                phenomenon = key.split("-")[0]
-                metric = key[key.index("-") + 1:]
-            elif metric_category == "blimp":
-                metric = key.replace("_filtered", "")
-                phenomenon = BLIMP_METRIC_TO_PHENOMENON[metric]
-            else:
-                raise RuntimeError("Unknown metric key: ", key)
-            prefix = metric_category + '/' + phenomenon
-            results[prefix + '-' + metric] = val
-            prefix_phen = metric_category + "_phenomena" + '/' + phenomenon
-            if prefix_phen in phenomenon_results:
-                phenomenon_results[prefix_phen].append(val)
-            else:
-                phenomenon_results[prefix_phen] = [val]
-        phenomenon_results = {key: np.mean(values) for key, values in phenomenon_results.items()}
-        results.update(phenomenon_results)
-
+        results = parse_babylm_metrics_results(out)
         self.log_dict(results)
-
 
     def on_validation_epoch_end(self):
         self.generate_sample_sentences()
         if not self.trainer.state.stage == 'sanity_check':
-            self.eval_babylm(["blimp_filtered", "zorro"])
+            self.eval_babylm()
 
     def on_save_checkpoint(self, checkpoint):
         new_best_val_loss = checkpoint["callbacks"]["EarlyStopping{'monitor': 'val_loss', 'mode': 'min'}"][

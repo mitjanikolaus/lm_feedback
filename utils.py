@@ -1,5 +1,7 @@
 import os.path
 
+import numpy as np
+
 BASE_DATA_DIR = os.getenv("DATA_DIR", default=os.path.expanduser("~/data"))
 DATA_DIR = os.path.join(BASE_DATA_DIR, "lm_feedback")
 
@@ -106,3 +108,43 @@ BLIMP_METRIC_TO_PHENOMENON = {
     "regular_plural_subject_verb_agreement_1": "subject_verb_agr",
     "regular_plural_subject_verb_agreement_2": "subject_verb_agr"
 }
+
+
+def parse_babylm_metrics_results(out):
+    results = dict()
+    if "zorro" in out["results"]:
+        results["zorro"] = out["results"].pop("zorro")["acc,none"]
+    if "zorro_filtered_childes" in out["results"]:
+        results["zorro_filtered_childes"] = out["results"].pop("zorro_filtered_childes")["acc,none"]
+    if "blimp_filtered" in out["results"]:
+        results["blimp"] = out["results"].pop("blimp_filtered")["acc,none"]
+    if "blimp_filtered_childes" in out["results"]:
+        results["blimp_filtered_childes"] = out["results"].pop("blimp_filtered_childes")["acc,none"]
+
+    phenomenon_results = dict()
+    for key, val in out["results"].items():
+        val = val["acc,none"]
+        metric_category = key.split("_")[0]
+        key = key[key.index("_") + 1:]
+        if key.endswith("_filtered_childes"):
+            metric_category += "_filtered_childes"
+            key = key.replace("_filtered_childes", "")
+
+        if metric_category.startswith("zorro"):
+            phenomenon = key.split("-")[0]
+            metric = key[key.index("-") + 1:]
+        elif metric_category.startswith("blimp"):
+            metric = key.replace("_filtered", "")
+            phenomenon = BLIMP_METRIC_TO_PHENOMENON[metric]
+        else:
+            raise RuntimeError("Unknown metric key: ", key)
+        prefix = metric_category + '/' + phenomenon
+        results[prefix + '-' + metric] = val
+        prefix_phen = metric_category + "_phenomena" + '/' + phenomenon
+        if prefix_phen in phenomenon_results:
+            phenomenon_results[prefix_phen].append(val)
+        else:
+            phenomenon_results[prefix_phen] = [val]
+    phenomenon_results = {key: np.mean(values) for key, values in phenomenon_results.items()}
+    results.update(phenomenon_results)
+    return results

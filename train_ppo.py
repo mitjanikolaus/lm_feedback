@@ -15,7 +15,9 @@ from trl.trainer.ppo_config import JSONDict
 import wandb
 from tqdm import tqdm
 import torch.nn.functional as F
-from utils import BLIMP_METRIC_TO_PHENOMENON, CHILDES_LM_TRAIN_DATA_FILE
+
+from train_lm import DEFAULT_EVAL_METRICS
+from utils import CHILDES_LM_TRAIN_DATA_FILE, parse_babylm_metrics_results
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, HfArgumentParser, PreTrainedTokenizerBase
 from datasets import Dataset
@@ -544,46 +546,20 @@ def build_policy_trainer_dataset(tokenizer, data_path, max_length):
     return ds
 
 
-def eval_babylm(model, model_args, tasks, ppo_trainer, device, config, eval_batch_size=1024):
+def eval_babylm(model, model_args, ppo_trainer, device, config, eval_batch_size=1024):
     print("Evaluating babylm metrics")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         out = evaluator.simple_evaluate(
             model=model,
             model_args=model_args,
-            tasks=tasks,
+            tasks=config.eval_metrics,
             batch_size=eval_batch_size,
             device=f"cuda:{device}",
             cache_requests=True,
         )
 
-    results = {
-        "blimp": out["results"].pop("blimp_filtered")["acc,none"],
-        "zorro": out["results"].pop("zorro")["acc,none"]
-    }
-
-    phenomenon_results = dict()
-    for key, val in out["results"].items():
-        val = val["acc,none"]
-        metric_category = key.split("_")[0]
-        key = key[key.index("_") + 1:]
-        if metric_category == "zorro":
-            phenomenon = key.split("-")[0]
-            metric = key[key.index("-") + 1:]
-        elif metric_category == "blimp":
-            metric = key.replace("_filtered", "")
-            phenomenon = BLIMP_METRIC_TO_PHENOMENON[metric]
-        else:
-            raise RuntimeError("Unknown metric key: ", key)
-        prefix = metric_category + '/' + phenomenon
-        results[prefix + '-' + metric] = val
-        prefix_phen = metric_category + "_phenomena" + '/' + phenomenon
-        if prefix_phen in phenomenon_results:
-            phenomenon_results[prefix_phen].append(val)
-        else:
-            phenomenon_results[prefix_phen] = [val]
-    phenomenon_results = {key: np.mean(values) for key, values in phenomenon_results.items()}
-    results.update(phenomenon_results)
+    results = parse_babylm_metrics_results(out)
 
     if config.log_with == "wandb":
         wandb.log(results, commit=True, step=ppo_trainer.current_step)
@@ -618,6 +594,8 @@ class CfPPOConfig(PPOConfig):
     lm_data_path: str = CHILDES_LM_TRAIN_DATA_FILE
     query_min_length: int = 1
     query_max_length: int = 2
+
+    eval_metrics: List[str] = field(default_factory=lambda: DEFAULT_EVAL_METRICS)
 
     eval_freq: int = 100
     log_freq: int = 20
@@ -661,7 +639,6 @@ def main():
         tokenizer.save_pretrained(os.path.join(CKPT_DIR, config.exp_name))
 
         eval_babylm(model="hf", model_args=f"pretrained={os.path.join(CKPT_DIR, config.exp_name)},add_bos_token=True",
-                    tasks=["zorro", "blimp_filtered"],
                     ppo_trainer=ppo_trainer, device=ppo_trainer.accelerator.device.index, config=config)
 
     def generate(batch, query_length_sampler, use_queries):
