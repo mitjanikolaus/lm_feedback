@@ -689,7 +689,7 @@ def main():
 
         return batch, response_tensors, query_tensors
 
-    def compute_rewards(queries, responses, response_tensors):
+    def compute_rewards(queries, responses, response_tensors, value_model, value_model_tokenizer):
         texts = [(q + r).strip() for q, r in zip(queries, responses)]
 
         texts_encoded = value_model_tokenizer(texts, padding=True, truncation=True, return_tensors="pt",
@@ -714,24 +714,28 @@ def main():
 
         return rewards
 
-
     query_length_sampler = LengthSampler(config.query_min_length, config.query_max_length + 1)
-    for step, batch in enumerate(tqdm(ppo_trainer.dataloader, total=config.steps)):
-        if (config.eval_freq != -1) and (step % config.eval_freq == 0):
-            eval_babylm_metrics()
+    step = 0
+    while step <= config.steps:
+        for batch in tqdm(ppo_trainer.dataloader):
+            if (config.eval_freq != -1) and (step % config.eval_freq == 0):
+                eval_babylm_metrics()
 
-        use_queries = config.query_max_length > 0
-        batch, response_tensors, query_tensors = generate(batch, query_length_sampler, use_queries)
-        rewards = compute_rewards(batch["query"], batch["response"], response_tensors)
+            use_queries = config.query_max_length > 0
+            batch, response_tensors, query_tensors = generate(batch, query_length_sampler, use_queries)
+            rewards = compute_rewards(
+                batch["query"], batch["response"], response_tensors, value_model, value_model_tokenizer
+            )
 
-        stats = ppo_trainer.step(query_tensors, response_tensors, rewards, lm_inputs=batch["input_ids"],
-                                 lm_loss_coef=config.lm_loss_coef)
+            stats = ppo_trainer.step(query_tensors, response_tensors, rewards, lm_inputs=batch["input_ids"],
+                                     lm_loss_coef=config.lm_loss_coef)
 
-        if step % config.log_freq == 0:
-            ppo_trainer.log_stats(stats, batch, rewards)
+            if step % config.log_freq == 0:
+                ppo_trainer.log_stats(stats, batch, rewards)
 
-        if step >= config.steps:
-            break
+            step += 1
+            if step >= config.steps:
+                break
 
 if __name__ == "__main__":
     os.makedirs(CKPT_DIR, exist_ok=True)
