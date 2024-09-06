@@ -11,5 +11,6 @@ dependencies:
   - pytorch
   - pytorch-cuda=11.8
   - lightning
+  - trl
   - conda-forge::huggingface_hub=0.24.2
   - conda-forge::transformers=4.43
