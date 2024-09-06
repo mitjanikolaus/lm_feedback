@@ -23,7 +23,7 @@ os.environ["WANDB_PROJECT"] = "lm_feedback_baseline"
 MODEL_BABYLLAMA = "babyllama"
 MODEL_GPT2 = "gpt2"
 MODELS_CAUSAL = [MODEL_BABYLLAMA, MODEL_GPT2]
-DEFAULT_EVAL_METRICS = ["blimp_filtered", "zorro"]
+DEFAULT_EVAL_METRICS = ["blimp_filtered_childes", "zorro_filtered_childes"]
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
