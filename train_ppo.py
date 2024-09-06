@@ -716,7 +716,10 @@ def main():
 
     query_length_sampler = LengthSampler(config.query_min_length, config.query_max_length + 1)
     step = 0
+    epoch = 0
     while step <= config.steps:
+        print(f"\nEPOCH: {epoch}")
+        epoch += 1
         for batch in tqdm(ppo_trainer.dataloader):
             if (config.eval_freq != -1) and (step % config.eval_freq == 0):
                 eval_babylm_metrics()
