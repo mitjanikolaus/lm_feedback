@@ -132,7 +132,7 @@ CONTRACTIONS = {
     "would've": "would have",
     "could've": "could have",
     "might've": "might have",
-    "shouldn't've": "should not have",
+    "shouldn't've": "shouldn't have",
     "must've": "must have",
     "who've": "who have",
     "what've": "what have",
@@ -143,12 +143,6 @@ CONTRACTIONS = {
     "that've": "that have",
     "had've": "had have",
     "there'd": "there would",
-    "isn't": "is not",
-    "haven't": "have not",
-    "hasn't": "has not",
-    "didn't": "did not",
-    "don't": "do not",
-    "doesn't": "does not",
     "what'd": "what would",
     "I'd": "I would",
     "i'd": "i would",
@@ -223,11 +217,7 @@ CONTRACTIONS = {
     "daddy'll": "daddy will",
     "what'll": "what will",
     "wait'll": "wait until",
-    "won't": "will not",
-    "couldn't": "could not",
-    "aren't": "are not",
-    "can't": "can not",
-    "y'haven't": "you have not",
+    "y'haven't": "you haven't",
     "d'you": "do you",
     "what'r'ya": "what are you",
     "lookin'": "looking",
@@ -283,7 +273,7 @@ def replace_contractions(words):
         word if word.replace(",", "") not in CONTRACTIONS.keys() else CONTRACTIONS[word.replace(",", "")]
         for word in words
     ]
-    words = [word.replace("'ll", " will").replace("'ve", " have").replace("n't", " not") for word in words]
+    words = [word.replace("'ll", " will").replace("'ve", " have") for word in words]
     return words
 
 
@@ -302,10 +292,8 @@ def preprocess_childes_utterance(utt):
     return cleaned_utterance
 
 
-def load_data(data_path, capitalize_bos):
+def load_data(data_path):
     data_df = pd.read_csv(data_path)
-    if capitalize_bos:
-        data_df["transcript_clean"] = data_df["transcript_clean"].apply(lambda x: x[0].capitalize() + x[1:])
 
     data_df["transcript_clean"] = data_df["transcript_clean"].apply(preprocess_childes_utterance)
 
@@ -315,7 +303,7 @@ def load_data(data_path, capitalize_bos):
 
 class ChildesDataModule(LightningDataModule):
     def __init__(self, lm_data_path=CHILDES_LM_DATA_FILE, additional_train=None, fb=False, fb_data_path=CHILDES_RL_DATA_FILE, vocab_size=5000,
-                 max_len=128, batch_size=256, num_workers=4, causal=True, capitalize_bos=False, max_num_words=-1,
+                 max_len=128, batch_size=256, num_workers=4, causal=True, max_num_words=-1,
                  tokenizer_type="word_level"):
         super().__init__()
         self.vocab_size = vocab_size
@@ -337,7 +325,7 @@ class ChildesDataModule(LightningDataModule):
             val_data_path = val_data_path.replace("_val.txt", f"_val_{max_num_words}_words.txt")
         if not os.path.isfile(train_data_path) or not os.path.isfile(val_data_path):
             print("Creating train/val datasets")
-            data = load_data(lm_data_path, capitalize_bos)
+            data = load_data(lm_data_path)
             if max_num_words != -1:
                 num_words = 0
                 target_index = 0
@@ -408,7 +396,7 @@ class ChildesDataModule(LightningDataModule):
             raise RuntimeError(f"Unknown tokenizer type: {tokenizer_type}")
 
         if self.additional_train is not None:
-            data_add = load_data(self.additional_train, capitalize_bos)
+            data_add = load_data(self.additional_train)
             data_train = data_train + data_add
 
         self.dataset_dev = ChildesLMDataset(data_val, tokenizer=self.tokenizer, tokenizer_type=tokenizer_type,
@@ -421,9 +409,6 @@ class ChildesDataModule(LightningDataModule):
             data_fb = pd.read_csv(fb_data_path)
             data_fb["reward"] = data_fb.apply(compute_reward_value, axis=1)
             data_fb = data_fb[["utt_transcript_clean", "reward"]]
-            if capitalize_bos:
-                data_fb["utt_transcript_clean"] = data_fb["utt_transcript_clean"].apply(
-                    lambda x: x[0].capitalize() + x[1:])
 
             data_fb_train, data_fb_dev = train_test_split(data_fb, test_size=DEV_SET_SIZE, shuffle=True,
                                                           random_state=SPLIT_RANDOM_STATE)
