@@ -2,7 +2,11 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Optional, Union, Callable, List, Dict, Tuple, Any
 
+import numpy as np
 import torch
+from sklearn.model_selection import train_test_split
+from sklearn.utils import class_weight
+
 import wandb
 from torch import nn
 import torch.nn.functional as F
@@ -12,6 +16,8 @@ from transformers.integrations import WandbCallback
 from transformers.trainer_pt_utils import nested_detach
 from trl.trainer.utils import print_rich_table
 
+from data import preprocess_childes_utterance
+
 tqdm.pandas()
 
 from transformers import AutoTokenizer, HfArgumentParser, AutoModelForSequenceClassification, PreTrainedModel, \
@@ -20,6 +26,9 @@ from datasets import Dataset, DatasetDict
 
 from trl import RewardConfig, ModelConfig, \
     get_quantization_config, get_kbit_device_map, RewardTrainer, get_peft_config
+
+TEST_SET_SIZE = 0.1
+SPLIT_RANDOM_STATE = 1
 
 
 def compute_acc(eval_pred) -> Dict[str, float]:
@@ -119,7 +128,8 @@ class WandbPredictionProgressCallback(WandbCallback):
             predictions = self.trainer.predict(self.sample_dataset)
 
             table = defaultdict(list)
-            table["text"] = [utt + " " + resp for utt, resp in zip(self.sample_dataset["utt_transcript_clean"], self.sample_dataset["response_transcript_clean"])]
+            table["text"] = [utt + " " + resp for utt, resp in zip(self.sample_dataset["utt_transcript_clean"],
+                                                                   self.sample_dataset["response_transcript_clean"])]
             table[self.target_column] = self.sample_dataset[self.target_column].cpu()
             table["prediction"] = predictions.predictions.squeeze()
 
@@ -132,26 +142,29 @@ class WandbPredictionProgressCallback(WandbCallback):
 class CFClassifierTrainer(RewardTrainer):
 
     def __init__(
-        self,
-        model: Optional[Union[PreTrainedModel, nn.Module]] = None,
-        args: Optional[RewardConfig] = None,
-        train_dataset: Optional[Dataset] = None,
-        eval_dataset: Optional[Union[Dataset, Dict[str, Dataset]]] = None,
-        tokenizer: Optional[PreTrainedTokenizerBase] = None,
-        model_init: Optional[Callable[[], PreTrainedModel]] = None,
-        callbacks: Optional[List[TrainerCallback]] = None,
-        optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (
-            None,
-            None,
-        ),
-        preprocess_logits_for_metrics: Optional[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = None,
-        max_length: Optional[int] = None,
-        peft_config: Optional[Dict] = None,
-        target_column: str = None
+            self,
+            model: Optional[Union[PreTrainedModel, nn.Module]] = None,
+            args: Optional[RewardConfig] = None,
+            train_dataset: Optional[Dataset] = None,
+            eval_dataset: Optional[Union[Dataset, Dict[str, Dataset]]] = None,
+            tokenizer: Optional[PreTrainedTokenizerBase] = None,
+            model_init: Optional[Callable[[], PreTrainedModel]] = None,
+            callbacks: Optional[List[TrainerCallback]] = None,
+            optimizers: Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (
+                    None,
+                    None,
+            ),
+            preprocess_logits_for_metrics: Optional[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = None,
+            max_length: Optional[int] = None,
+            peft_config: Optional[Dict] = None,
+            target_column: str = None,
+            class_weight=None,
     ):
-        data_collator = CFClassifierDataCollatorWithPadding(tokenizer, max_length=max_length, target_column=target_column)
+        data_collator = CFClassifierDataCollatorWithPadding(tokenizer, max_length=max_length,
+                                                            target_column=target_column)
         compute_metrics = compute_acc
         self.target_column = target_column
+        self.class_weight = class_weight
         super(CFClassifierTrainer, self).__init__(
             model, args, data_collator, train_dataset, eval_dataset, tokenizer, model_init, compute_metrics, callbacks,
             optimizers, preprocess_logits_for_metrics, max_length, peft_config
@@ -161,11 +174,11 @@ class CFClassifierTrainer(RewardTrainer):
         return super(RewardTrainer, self).evaluate(*args, **kwargs)
 
     def prediction_step(
-        self,
-        model: Union[PreTrainedModel, nn.Module],
-        inputs: Dict[str, Union[torch.Tensor, Any]],
-        prediction_loss_only: bool,
-        ignore_keys: Optional[List[str]] = None,
+            self,
+            model: Union[PreTrainedModel, nn.Module],
+            inputs: Dict[str, Union[torch.Tensor, Any]],
+            prediction_loss_only: bool,
+            ignore_keys: Optional[List[str]] = None,
     ) -> Tuple[Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
         inputs = self._prepare_inputs(inputs)
 
@@ -186,10 +199,10 @@ class CFClassifierTrainer(RewardTrainer):
         return loss, outputs, labels
 
     def compute_loss(
-        self,
-        model: Union[PreTrainedModel, nn.Module],
-        inputs: Dict[str, Union[torch.Tensor, Any]],
-        return_outputs=False,
+            self,
+            model: Union[PreTrainedModel, nn.Module],
+            inputs: Dict[str, Union[torch.Tensor, Any]],
+            return_outputs=False,
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, Dict[str, torch.Tensor]]]:
         logits = model(
             input_ids=inputs["input_ids"],
@@ -198,7 +211,9 @@ class CFClassifierTrainer(RewardTrainer):
         )["logits"]
 
         targets = inputs[self.target_column].to(torch.float)
-        loss = nn.functional.binary_cross_entropy_with_logits(logits.squeeze(), target=targets)
+        loss = nn.functional.binary_cross_entropy_with_logits(
+            logits.squeeze(), target=targets, pos_weight=self.class_weight
+        )
 
         if return_outputs:
             return loss, {
@@ -207,13 +222,18 @@ class CFClassifierTrainer(RewardTrainer):
         return loss
 
 
-def build_cf_classifier_datasets(train_data_path, test_data_path, target_column):
-    data_train = pd.read_csv(train_data_path)
-    data_train = data_train[["utt_transcript_clean", "response_transcript_clean", target_column]]
+def build_cf_classifier_datasets(data_path, target_column):
+    data = pd.read_csv(data_path)
+    data = data[["utt_transcript_clean", "response_transcript_clean", target_column]]
 
-    data_test = pd.read_csv(test_data_path)
-    data_test = data_test[["utt_transcript_clean", "response_transcript_clean", target_column]]
+    data["utt_transcript_clean"] = data["utt_transcript_clean"].apply(preprocess_childes_utterance)
+    data["response_transcript_clean"] = data["response_transcript_clean"].apply(preprocess_childes_utterance)
 
+    data_train, data_test = train_test_split(data, test_size=TEST_SET_SIZE, shuffle=True,
+                                             random_state=SPLIT_RANDOM_STATE)
+
+    print(f"train data stats:\n{data_train[target_column].value_counts()}")
+    print(f"test data stats:\n{data_test[target_column].value_counts()}")
     ds_train = Dataset.from_pandas(data_train)
     ds_test = Dataset.from_pandas(data_test)
 
@@ -224,11 +244,17 @@ def build_cf_classifier_datasets(train_data_path, test_data_path, target_column)
     return datasets
 
 
+def calc_class_weights(labels):
+    class_weights = class_weight.compute_class_weight('balanced', classes=np.unique(labels), y=labels)
+
+    return class_weights
+
+
 @dataclass
 class CFClassfierConfig():
-    train_data_path: str
-    test_data_path: str
+    data_path: str
     target_column: str
+    use_class_weights: bool = True
 
 
 def main():
@@ -269,9 +295,6 @@ def main():
         config=args,
     )
 
-    ################
-    # Model & Tokenizer
-    ################
     quantization_config = get_quantization_config(model_config)
     model_kwargs = dict(
         revision=model_config.model_revision,
@@ -285,13 +308,11 @@ def main():
         model_config.model_name_or_path, num_labels=1, trust_remote_code=model_config.trust_remote_code, **model_kwargs
     )
 
-    ################
-    # Dataset
-    ################
-    raw_datasets = build_cf_classifier_datasets(args.train_data_path, args.test_data_path, args.target_column)
+    raw_datasets = build_cf_classifier_datasets(args.data_path, args.target_column)
 
     def preprocess_function(samples):
-        texts = [utt + tokenizer.sep_token + resp for utt, resp in zip(samples["utt_transcript_clean"], samples["response_transcript_clean"])]
+        texts = [utt + tokenizer.sep_token + resp for utt, resp in
+                 zip(samples["utt_transcript_clean"], samples["response_transcript_clean"])]
         tokenized = tokenizer(texts, truncation=True, max_length=trainer_config.max_length)
         tokenized[args.target_column] = samples[args.target_column]
 
@@ -305,6 +326,12 @@ def main():
     train_dataset = raw_datasets["train"]
     eval_dataset = raw_datasets["test"]
 
+    class_weight = None
+    if args.use_class_weights:
+        class_weights = calc_class_weights(train_dataset[args.target_column].numpy())
+        class_weight = torch.tensor(class_weights[1])
+        print(f"Model loss pos class weight: {class_weight}")
+
     ################
     # Training
     ################
@@ -316,6 +343,7 @@ def main():
         eval_dataset=eval_dataset,
         peft_config=get_peft_config(model_config),
         target_column=args.target_column,
+        class_weight=class_weight,
     )
     progress_callback = WandbPredictionProgressCallback(
         trainer=trainer,
