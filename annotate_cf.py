@@ -17,6 +17,8 @@ tqdm.pandas()
 
 BATCH_SIZE = 512
 
+device = torch.cuda if torch.cuda.is_available() else torch.cpu
+
 
 def load_data(data_path):
     data = pd.read_csv(data_path)
@@ -36,6 +38,7 @@ def main(args):
         args.model,
     )
     model.eval()
+    model.to(device)
 
     data = load_data(args.data_path)
 
@@ -65,8 +68,8 @@ def main(args):
     for batch in tqdm(dloader):
         with torch.no_grad():
             out = model(
-                input_ids=batch["input_ids"],
-                attention_mask=batch["attention_mask"],
+                input_ids=batch["input_ids"].to(device),
+                attention_mask=batch["attention_mask"].to(device),
                 return_dict=True,
             )
             preds_proba = F.sigmoid(out["logits"].squeeze())
