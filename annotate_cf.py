@@ -82,8 +82,13 @@ def main(args):
     print(f"Saving results to {out_path}")
     data.to_csv(out_path, index=False)
 
-    print(f"Stats for annotated data:")
+    print(f"\nStats for annotated data:")
     print(data.loc[data_to_annotate.index.values, args.target_column].value_counts())
+
+    annotated_data = data.iloc[data_to_annotate.index.values].copy()
+    print(f"\nSamples of annotated data:")
+    print(annotated_data[annotated_data[args.target_column == 0]].sample(10))
+    print(annotated_data[annotated_data[args.target_column == 1]].sample(10))
 
 
 def get_args():
