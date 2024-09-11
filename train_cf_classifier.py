@@ -33,9 +33,10 @@ SPLIT_RANDOM_STATE = 1
 
 def compute_acc(eval_pred) -> Dict[str, float]:
     predictions, labels = eval_pred
-    acc = ((predictions > 0.5) == labels).mean().item()
-
-    return {"acc": acc}
+    acc = ((predictions > 0.5) == labels)
+    acc_cf = acc[labels == 1].mean().item()
+    acc_other = acc[labels == 0].mean().item()
+    return {"acc": acc.mean().item(), "acc_cf": acc_cf, "acc_other": acc_other}
 
 
 @dataclass
