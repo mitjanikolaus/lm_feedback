@@ -29,6 +29,7 @@ from trl import RewardConfig, ModelConfig, \
 
 TEST_SET_SIZE = 0.2
 SPLIT_RANDOM_STATE = 1
+DEFAULT_MAX_LENGTH = 256
 
 
 def compute_acc(eval_pred) -> Dict[str, float]:
@@ -75,13 +76,14 @@ class CFClassifierDataCollatorWithPadding:
         batch = self.tokenizer.pad(
             samples_batched,
             padding=self.padding,
-            max_length=self.max_length,
             pad_to_multiple_of=self.pad_to_multiple_of,
             return_tensors=self.return_tensors,
         ).data
 
         batch["return_loss"] = True
-        batch[self.target_column] = torch.stack([sample[self.target_column] for sample in samples])
+
+        if self.target_column is not None:
+            batch[self.target_column] = torch.stack([sample[self.target_column] for sample in samples])
         return batch
 
 
@@ -268,7 +270,7 @@ def main():
     reward_config_fields["num_train_epochs"].default = 20
     reward_config_fields["learning_rate"].default = 1.41e-5
     reward_config_fields["optim"].default = "adamw_torch"
-    reward_config_fields["max_length"].default = 256
+    reward_config_fields["max_length"].default = DEFAULT_MAX_LENGTH
     reward_config_fields["remove_unused_columns"].default = False
     reward_config_fields["load_best_model_at_end"].default = True
     reward_config_fields["metric_for_best_model"].default = "acc"
