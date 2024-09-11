@@ -87,8 +87,10 @@ def main(args):
 
     annotated_data = data.iloc[data_to_annotate.index.values].copy()
     print(f"\nSamples of annotated data:")
-    print(annotated_data[annotated_data[args.target_column == 0]].sample(10))
-    print(annotated_data[annotated_data[args.target_column == 1]].sample(10))
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.width', 1000)
+    print(annotated_data[annotated_data[args.target_column] == 0].sample(20))
+    print(annotated_data[annotated_data[args.target_column] == 1].sample(20))
 
 
 def get_args():
