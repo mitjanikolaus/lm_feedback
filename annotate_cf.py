@@ -17,7 +17,7 @@ tqdm.pandas()
 
 BATCH_SIZE = 512
 
-device = torch.cuda if torch.cuda.is_available() else torch.cpu
+device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def load_data(data_path):
