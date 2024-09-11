@@ -83,7 +83,7 @@ def main(args):
     data.to_csv(out_path, index=False)
 
     print(f"Stats for annotated data:")
-    print(data.loc[data_to_annotate.index.values, args.target_column].value_count())
+    print(data.loc[data_to_annotate.index.values, args.target_column].value_counts())
 
 
 def get_args():
