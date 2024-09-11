@@ -242,6 +242,15 @@ def build_reward_model_trainer_datasets(fb_data_paths, reward_cr, reward_ack, re
 
         if "transcript_clean" in data.columns and "reward" in data.columns:
             pass
+        elif "is_cr" in data.columns:
+            print("Building reward model dataset based on DNN CR annotations")
+            print("Not taking into account acknowledgements (reward_ack = reward_other)")
+            data["response_is_clarification_request"] = data["is_cr"]
+            data["response_is_acknowledgement"] = 0
+            data["reward"] = data.apply(
+                compute_reward_value, axis=1, reward_cr=reward_cr, reward_ack=reward_other, reward_other=reward_other
+            )
+            data["transcript_clean"] = data["utt_transcript_clean"]
         elif "response_is_clarification_request" in data.columns and "response_is_acknowledgement" in data.columns:
             print("Building reward model dataset based on CR and ACK data")
             data["reward"] = data.apply(
