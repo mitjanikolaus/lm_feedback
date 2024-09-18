@@ -16,6 +16,7 @@ import wandb
 from tqdm import tqdm
 import torch.nn.functional as F
 
+from data import DEFAULT_MAX_LEN
 from train_lm import DEFAULT_EVAL_METRICS
 from utils import CHILDES_LM_TRAIN_DATA_FILE, parse_babylm_metrics_results
 
@@ -529,18 +530,18 @@ class ChildesPPOTrainer(PPOTrainer):
                 )
 
 
-def build_policy_trainer_dataset(tokenizer, data_path, max_length):
+def build_policy_trainer_dataset(tokenizer, data_path, query_max_length, utt_max_length=DEFAULT_MAX_LEN):
     with open(data_path, "r") as file:
         data = file.read().split("\n")
 
     ds = Dataset.from_list([{"utt": utt} for utt in data])
 
     def tokenize(sample):
-        sample["input_ids"] = tokenizer.encode(sample["utt"])
+        sample["input_ids"] = tokenizer(sample["utt"], max_length=utt_max_length).input_ids
         return sample
 
-    ds = ds.map(tokenize, batched=False, num_proc=10)
-    ds = ds.filter(lambda x: len(x["input_ids"]) > max_length + 2, batched=False)
+    ds = ds.map(tokenize, num_proc=10)
+    ds = ds.filter(lambda x: len(x["input_ids"]) > query_max_length + 2)
 
     ds.set_format(type="torch")
     return ds
@@ -622,7 +623,9 @@ def main():
     model = AutoModelForCausalLMWithValueHead.from_pretrained(config.policy_model)
     tokenizer = AutoTokenizer.from_pretrained(config.policy_model)
 
-    dataset = build_policy_trainer_dataset(tokenizer, data_path=config.lm_data_path, max_length=config.query_max_length)
+    dataset = build_policy_trainer_dataset(
+        tokenizer, data_path=config.lm_data_path, query_max_length=config.query_max_length
+    )
 
     def collator(data):
         return dict((key, [d[key] for d in data]) for key in data[0])

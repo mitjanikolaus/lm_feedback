@@ -45,6 +45,8 @@ DATA_FILE_SWITCHBOARD = "switchboard"
 
 VOCAB_MIN_WORD_FREQ = 2
 
+DEFAULT_MAX_LEN = 128
+
 DATA_NAMES = [DATA_FILE_CHILDES, DATA_FILE_BNC, DATA_FILE_GUTENBERG, DATA_FILE_OPEN_SUBTITLES, DATA_FILE_WIKI,
               DATA_FILE_SWITCHBOARD]
 
@@ -303,7 +305,7 @@ def load_data(data_path):
 
 class ChildesDataModule(LightningDataModule):
     def __init__(self, lm_data_path=CHILDES_LM_DATA_FILE, additional_train=None, fb=False, fb_data_path=CHILDES_RL_DATA_FILE, vocab_size=5000,
-                 max_len=128, batch_size=256, num_workers=4, causal=True, max_num_words=-1,
+                 max_len=DEFAULT_MAX_LEN, batch_size=256, num_workers=4, causal=True, max_num_words=-1,
                  tokenizer_type="word_level"):
         super().__init__()
         self.vocab_size = vocab_size
@@ -461,7 +463,7 @@ class ChildesLMDataset(Dataset):
 class BabyLMDataModule(LightningDataModule):
     def __init__(self, training_track=TRAINING_TRACK_STRICT_SMALL, fb=False, fb_data_path=CHILDES_RL_DATA_FILE,
                  vocab_size=10000,
-                 max_len=128, batch_size=128, num_workers=4, subset=None, causal=True):
+                 max_len=DEFAULT_MAX_LEN, batch_size=128, num_workers=4, subset=None, causal=True):
         super().__init__()
         if subset is None:
             data_file_names = DATA_NAMES
