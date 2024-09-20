@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import torch
 from accelerate.utils import gather_object
+from torch.utils.data import DataLoader
 from trl.trainer.ppo_config import JSONDict
 
 import wandb
@@ -18,7 +19,7 @@ import torch.nn.functional as F
 
 from data import DEFAULT_MAX_LEN
 from train_lm import DEFAULT_EVAL_METRICS
-from utils import CHILDES_LM_TRAIN_DATA_FILE, parse_babylm_metrics_results
+from utils import CHILDES_LM_TRAIN_DATA_FILE, parse_babylm_metrics_results, CHILDES_LM_VAL_DATA_FILE
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, HfArgumentParser, PreTrainedTokenizerBase
 from datasets import Dataset
@@ -43,12 +44,14 @@ class ChildesPPOTrainer(PPOTrainer):
             tokenizer: Optional[PreTrainedTokenizerBase] = None,
             dataset: Optional[Union[torch.utils.data.Dataset, Dataset]] = None,
             optimizer: Optional[torch.optim.Optimizer] = None,
-            data_collator: Optional[typing.Callable] = None,
             num_shared_layers: Optional[int] = None,
             lr_scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
             training_data_collator: Optional[typing.Callable] = None,
     ):
-        super(ChildesPPOTrainer, self).__init__(config, model, ref_model, tokenizer, dataset, optimizer, data_collator,
+        def collator(data):
+            return dict((key, [d[key] for d in data]) for key in data[0])
+
+        super(ChildesPPOTrainer, self).__init__(config, model, ref_model, tokenizer, dataset, optimizer, collator,
                                                 num_shared_layers, lr_scheduler, training_data_collator)
 
     @PPODecorators.empty_device_cache()
@@ -530,14 +533,15 @@ class ChildesPPOTrainer(PPOTrainer):
                 )
 
 
-def build_policy_trainer_dataset(tokenizer, data_path, query_max_length, utt_max_length=DEFAULT_MAX_LEN):
+def load_lm_data(data_path, tokenizer, query_max_length, utt_max_length, keep_utt=True):
     with open(data_path, "r") as file:
         data = file.read().split("\n")
-
     ds = Dataset.from_list([{"utt": utt} for utt in data])
 
     def tokenize(sample):
         sample["input_ids"] = tokenizer(sample["utt"], max_length=utt_max_length).input_ids
+        if not keep_utt:
+            del sample["utt"]
         return sample
 
     ds = ds.map(tokenize, num_proc=10)
@@ -547,12 +551,22 @@ def build_policy_trainer_dataset(tokenizer, data_path, query_max_length, utt_max
     return ds
 
 
-def eval_babylm(model, model_args, ppo_trainer, device, config, eval_batch_size=1024):
+def build_policy_trainer_datasets(data_path, lm_val_data_path, tokenizer, query_max_length,
+                                  utt_max_length=DEFAULT_MAX_LEN):
+    ds_train = load_lm_data(data_path, tokenizer, query_max_length, utt_max_length)
+    ds_val = load_lm_data(lm_val_data_path, tokenizer, query_max_length, utt_max_length, keep_utt=False)
+    return ds_train, ds_val
+
+
+def eval_babylm(model, tokenizer, model_args, ppo_trainer, device, config, eval_batch_size=1024):
     print("Evaluating babylm metrics")
+    model.save_pretrained(os.path.join(CKPT_DIR, config.exp_name))
+    tokenizer.save_pretrained(os.path.join(CKPT_DIR, config.exp_name))
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         out = evaluator.simple_evaluate(
-            model=model,
+            model="hf",
             model_args=model_args,
             tasks=config.eval_metrics,
             batch_size=eval_batch_size,
@@ -593,8 +607,11 @@ class CfPPOConfig(PPOConfig):
     score_clip: float = None
 
     lm_data_path: str = CHILDES_LM_TRAIN_DATA_FILE
+    lm_val_data_path: str = CHILDES_LM_VAL_DATA_FILE
     query_min_length: int = 1
     query_max_length: int = 2
+
+    lm_val_batch_size: int = 1024
 
     eval_metrics: List[str] = field(default_factory=lambda: DEFAULT_EVAL_METRICS)
 
@@ -604,6 +621,33 @@ class CfPPOConfig(PPOConfig):
     log_with: str = "wandb"
 
     accelerator_kwargs: JSONDict = field(default_factory=lambda: {"mixed_precision": "bf16"})
+
+
+def eval_lm_loss(model, tokenizer, config, trainer, lm_val_dataloader, max_batches=100):
+    print("Evaluating LM loss")
+    model.eval()
+    losses = []
+    for batch_idx, batch in tqdm(enumerate(lm_val_dataloader)):
+        batch = batch.to(trainer.current_device)
+        labels = batch["input_ids"].clone()
+        labels[labels == tokenizer.pad_token_id] = -100
+        batch["labels"] = labels
+        lm_output = model.pretrained_model(**batch)
+        lm_loss = lm_output["loss"].cpu().item()
+        losses.append(lm_loss)
+        if batch_idx >= max_batches:
+            break
+    results = {"lm_val_loss": np.mean(losses)}
+    if config.log_with == "wandb":
+        wandb.log(results, commit=True, step=trainer.current_step)
+    else:
+        trainer.accelerator.log(results, step=trainer.current_step, log_kwargs={"commit": True})
+
+
+def eval(model, tokenizer, config, trainer, lm_val_dataloader):
+    eval_lm_loss(model, tokenizer, config, trainer, lm_val_dataloader)
+    eval_babylm(model, tokenizer, model_args=f"pretrained={os.path.join(CKPT_DIR, config.exp_name)},add_bos_token=True",
+                ppo_trainer=trainer, device=trainer.accelerator.device.index, config=config)
 
 
 def main():
@@ -623,26 +667,24 @@ def main():
     model = AutoModelForCausalLMWithValueHead.from_pretrained(config.policy_model)
     tokenizer = AutoTokenizer.from_pretrained(config.policy_model)
 
-    dataset = build_policy_trainer_dataset(
-        tokenizer, data_path=config.lm_data_path, query_max_length=config.query_max_length
+    train_dataset, lm_val_dataset = build_policy_trainer_datasets(
+        data_path=config.lm_data_path, lm_val_data_path=config.lm_val_data_path, tokenizer=tokenizer,
+        query_max_length=config.query_max_length
     )
-
-    def collator(data):
-        return dict((key, [d[key] for d in data]) for key in data[0])
 
     ref_model = AutoModelForCausalLMWithValueHead.from_pretrained(config.policy_model)
 
-    ppo_trainer = ChildesPPOTrainer(config, model, ref_model, tokenizer, dataset=dataset, data_collator=collator)
+    ppo_trainer = ChildesPPOTrainer(config, model, ref_model, tokenizer, dataset=train_dataset)
 
     value_model = AutoModelForSequenceClassification.from_pretrained(config.value_model)
     value_model_tokenizer = AutoTokenizer.from_pretrained(config.value_model)
 
-    def eval_babylm_metrics():
-        model.save_pretrained(os.path.join(CKPT_DIR, config.exp_name))
-        tokenizer.save_pretrained(os.path.join(CKPT_DIR, config.exp_name))
+    def val_collator(batch):
+        return tokenizer.pad(batch, padding=True, return_tensors="pt")
 
-        eval_babylm(model="hf", model_args=f"pretrained={os.path.join(CKPT_DIR, config.exp_name)},add_bos_token=True",
-                    ppo_trainer=ppo_trainer, device=ppo_trainer.accelerator.device.index, config=config)
+    lm_val_dataloader = DataLoader(
+        lm_val_dataset, shuffle=False, batch_size=config.lm_val_batch_size, collate_fn=val_collator
+    )
 
     def generate(batch, query_length_sampler, use_queries):
         generation_kwargs = {
@@ -702,7 +744,7 @@ def main():
         epoch += 1
         for batch in tqdm(ppo_trainer.dataloader):
             if (config.eval_freq != -1) and (step % config.eval_freq == 0):
-                eval_babylm_metrics()
+                eval(model, tokenizer, config, ppo_trainer, lm_val_dataloader)
 
             use_queries = config.query_max_length > 0
             batch, response_tensors, query_tensors = generate(batch, query_length_sampler, use_queries)
@@ -719,6 +761,7 @@ def main():
             step += 1
             if step >= config.steps:
                 break
+
 
 if __name__ == "__main__":
     os.makedirs(CKPT_DIR, exist_ok=True)
