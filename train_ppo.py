@@ -700,9 +700,13 @@ def main():
 
     ppo_trainer = ChildesPPOTrainer(config, model, ref_model, tokenizer, dataset=train_dataset)
 
-    value_model = AutoModelForSequenceClassification.from_pretrained(config.value_model)
-    value_model.eval()
-    value_model_tokenizer = AutoTokenizer.from_pretrained(config.value_model)
+    if config.value_model == "baseline_constant":
+        value_model = None
+        value_model_tokenizer = None
+    else:
+        value_model = AutoModelForSequenceClassification.from_pretrained(config.value_model)
+        value_model.eval()
+        value_model_tokenizer = AutoTokenizer.from_pretrained(config.value_model)
 
     def val_collator(batch):
         return tokenizer.pad(batch, padding=True, return_tensors="pt")
@@ -736,16 +740,18 @@ def main():
 
         return batch, response_tensors, query_tensors
 
-    def compute_rewards(queries, responses, response_tensors, value_model, value_model_tokenizer):
-        texts = [(q + r).strip() for q, r in zip(queries, responses)]
-
-        texts_encoded = value_model_tokenizer(texts, padding=True, truncation=True, return_tensors="pt",
-                                              max_length=config.output_max_length + 10)
-        with torch.no_grad():
-            value_model_outputs = value_model(**texts_encoded)
-        rewards = value_model_outputs.logits.squeeze()
-        rewards = F.sigmoid(rewards)
-        rewards = [torch.tensor(r.item()) for r in rewards]
+    def compute_rewards(queries, responses, response_tensors, value_model, value_model_tokenizer, config):
+        if config.value_model == "baseline_constant":
+            rewards = [torch.tensor(1) for _ in range(len(queries))]
+        else:
+            texts = [(q + r).strip() for q, r in zip(queries, responses)]
+            texts_encoded = value_model_tokenizer(texts, padding=True, truncation=True, return_tensors="pt",
+                                                  max_length=config.output_max_length + 10)
+            with torch.no_grad():
+                value_model_outputs = value_model(**texts_encoded)
+            rewards = value_model_outputs.logits.squeeze()
+            rewards = F.sigmoid(rewards)
+            rewards = [torch.tensor(r.item()) for r in rewards]
 
         # score clipping (before addition of length reward and rejection sampling!)
         if config.score_clip is not None:
@@ -779,7 +785,7 @@ def main():
             use_queries = config.query_max_length > 0
             batch, response_tensors, query_tensors = generate(batch, query_length_sampler, use_queries)
             rewards = compute_rewards(
-                batch["query"], batch["response"], response_tensors, value_model, value_model_tokenizer
+                batch["query"], batch["response"], response_tensors, value_model, value_model_tokenizer, config
             )
 
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards, lm_inputs=batch["input_ids"],
