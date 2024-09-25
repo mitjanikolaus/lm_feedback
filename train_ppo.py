@@ -657,7 +657,7 @@ def eval_lm_loss(model, tokenizer, config, trainer, lm_val_dataloader, max_batch
     val_loss = np.mean(losses)
     results = {"lm_val_loss": val_loss}
     if config.log_with == "wandb":
-        wandb.log(results, commit=True, step=trainer.current_step)
+        wandb.log(results, commit=False, step=trainer.current_step)
     else:
         trainer.accelerator.log(results, step=trainer.current_step, log_kwargs={"commit": True})
 
