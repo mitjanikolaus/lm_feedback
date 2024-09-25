@@ -1,3 +1,7 @@
 [submodule "evaluation-pipeline-2024"]
 	path = evaluation-pipeline-2024
 	url = https://github.com/mitjanikolaus/evaluation-pipeline-2024.git
+[submodule "childes-grammaticality"]
+	path = childes-grammaticality
+	url = git@github.com:mitjanikolaus/childes-grammaticality.git
+	branch = childes-db-integration
