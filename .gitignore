@@ -6,3 +6,6 @@ tokenizers
 lightning_logs
 wandb
 evaluation_data
+reward_model
+ckpts_ppo
+models
