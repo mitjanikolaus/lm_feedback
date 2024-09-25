@@ -701,6 +701,7 @@ def main():
     ppo_trainer = ChildesPPOTrainer(config, model, ref_model, tokenizer, dataset=train_dataset)
 
     value_model = AutoModelForSequenceClassification.from_pretrained(config.value_model)
+    value_model.eval()
     value_model_tokenizer = AutoTokenizer.from_pretrained(config.value_model)
 
     def val_collator(batch):
@@ -740,7 +741,8 @@ def main():
 
         texts_encoded = value_model_tokenizer(texts, padding=True, truncation=True, return_tensors="pt",
                                               max_length=config.output_max_length + 10)
-        value_model_outputs = value_model(**texts_encoded)
+        with torch.no_grad():
+            value_model_outputs = value_model(**texts_encoded)
         rewards = value_model_outputs.logits.squeeze()
         rewards = F.sigmoid(rewards)
         rewards = [torch.tensor(r.item()) for r in rewards]
