@@ -20,7 +20,7 @@ import torch.nn.functional as F
 
 from data import DEFAULT_MAX_LEN
 from train_lm import DEFAULT_EVAL_METRICS
-from utils import CHILDES_LM_TRAIN_DATA_FILE, parse_babylm_metrics_results, CHILDES_LM_VAL_DATA_FILE
+from utilities import CHILDES_LM_TRAIN_DATA_FILE, parse_babylm_metrics_results, CHILDES_LM_VAL_DATA_FILE
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, HfArgumentParser, PreTrainedTokenizerBase
 from datasets import Dataset

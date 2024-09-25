@@ -7,7 +7,7 @@ import pandas as pd
 import nltk
 from tqdm import tqdm
 
-from utils import BABYLM_DATA_DIR, CHILDES_LM_TRAIN_DATA_FILE
+from utilities import BABYLM_DATA_DIR, CHILDES_LM_TRAIN_DATA_FILE
 
 BLIMP_EVAL_DIR = os.path.join(BABYLM_DATA_DIR, "evaluation_data", "blimp_filtered")
 BLIMP_FILTERED_EVAL_DIR = os.path.join(BABYLM_DATA_DIR, "evaluation_data", "blimp_filtered_childes")

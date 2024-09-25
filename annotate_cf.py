@@ -8,7 +8,7 @@ import pandas as pd
 
 from data import preprocess_childes_utterance
 from train_cf_classifier import DEFAULT_MAX_LENGTH, CFClassifierDataCollatorWithPadding
-from utils import CHILDES_RL_DATA_FILE
+from utilities import CHILDES_RL_DATA_FILE
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from datasets import Dataset

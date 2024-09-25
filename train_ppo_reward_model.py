@@ -16,7 +16,7 @@ from transformers.trainer_pt_utils import nested_detach
 from trl.trainer.utils import print_rich_table
 
 from data import compute_reward_value
-from utils import CHILDES_RL_DATA_FILE
+from utilities import CHILDES_RL_DATA_FILE
 
 from transformers import AutoTokenizer, HfArgumentParser, AutoModelForSequenceClassification, PreTrainedModel, \
     PreTrainedTokenizerBase, TrainerCallback

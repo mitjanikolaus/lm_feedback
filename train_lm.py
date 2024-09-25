@@ -16,7 +16,7 @@ from data import ChildesDataModule, SEQUENCE_START_TOKEN
 from lm_eval import evaluator
 
 from model import ChildesGPT
-from utils import parse_babylm_metrics_results
+from utilities import parse_babylm_metrics_results
 
 os.environ["WANDB_PROJECT"] = "lm_feedback_baseline"
 

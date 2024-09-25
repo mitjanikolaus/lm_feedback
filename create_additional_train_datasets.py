@@ -2,7 +2,7 @@ import os
 from collections import Counter
 
 import pandas as pd
-from utils import CHILDES_RL_DATA_FILE, DATA_DIR
+from utilities import CHILDES_RL_DATA_FILE, DATA_DIR
 
 LONG_SENTENCE_LENGTH = 30
 

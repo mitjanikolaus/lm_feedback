@@ -20,7 +20,7 @@ from transformers import DataCollatorForLanguageModeling, DataCollatorWithPaddin
     GPT2TokenizerFast, BertTokenizerFast, PreTrainedTokenizerFast, AutoTokenizer
 
 from tokenizers import Tokenizer, normalizers
-from utils import BABYLM_DATA_DIR, SPEAKER_CODES_CAREGIVER, BABYLM_DATA_DIR_CLEAN, BABYLM_DATA_PATH_DEV_CLEAN, \
+from utilities import BABYLM_DATA_DIR, SPEAKER_CODES_CAREGIVER, BABYLM_DATA_DIR_CLEAN, BABYLM_DATA_PATH_DEV_CLEAN, \
     DEV_SET, TRAINING_TRACK_STRICT_SMALL, TRAIN_SET, CHILDES_LM_DATA_FILE, CHILDES_RL_DATA_FILE
 
 DEV_SET_SIZE = 0.1

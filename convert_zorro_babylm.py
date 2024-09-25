@@ -3,7 +3,7 @@ import os
 
 import pandas as pd
 
-from utils import BABYLM_DATA_DIR
+from utilities import BABYLM_DATA_DIR
 
 ZORRO_EVAL_DIR = os.path.join("UnMasked", "test_suites", "zorro")
 ZORRO_BABYLM_EVAL_DIR = os.path.join(BABYLM_DATA_DIR, "evaluation_data", "zorro")
