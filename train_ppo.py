@@ -1,4 +1,5 @@
 import copy
+import math
 import os
 import time
 import typing
@@ -33,6 +34,11 @@ tqdm.pandas()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 CKPT_DIR = "ckpts_ppo"
+CKPT_DIR_BEST_VAL_LOSS = os.path.join("ckpts_ppo", "best_val_loss")
+CKPT_DIR_BEST_ZORRO = os.path.join("ckpts_ppo", "best_zorro")
+CKPT_DIR_BEST_BLIMP = os.path.join("ckpts_ppo", "best_blimp")
+
+DEFAULT_MAX_GENERATION_LEN = 20
 
 
 class ChildesPPOTrainer(PPOTrainer):
@@ -581,6 +587,17 @@ def eval_babylm(model, tokenizer, model_args, ppo_trainer, device, config, eval_
     else:
         ppo_trainer.accelerator.log(results, step=ppo_trainer.current_step, log_kwargs={"commit": True})
 
+    if results['zorro_filtered_childes'] > ppo_trainer.best_zorro:
+        ppo_trainer.best_zorro = results['zorro_filtered_childes']
+        print(f"New best zorro: {results['zorro_filtered_childes']:.2f}, saving checkpoint")
+        model.save_pretrained(os.path.join(CKPT_DIR_BEST_ZORRO, config.exp_name))
+        tokenizer.save_pretrained(os.path.join(CKPT_DIR_BEST_ZORRO, config.exp_name))
+    if results['blimp_filtered_childes'] > ppo_trainer.best_blimp:
+        ppo_trainer.best_blimp = results['blimp_filtered_childes']
+        print(f"New best blimp: {results['blimp_filtered_childes']:.2f}, saving checkpoint")
+        model.save_pretrained(os.path.join(CKPT_DIR_BEST_BLIMP, config.exp_name))
+        tokenizer.save_pretrained(os.path.join(CKPT_DIR_BEST_BLIMP, config.exp_name))
+
 
 @dataclass
 class CfPPOConfig(PPOConfig):
@@ -596,7 +613,7 @@ class CfPPOConfig(PPOConfig):
     mini_batch_size: int = 512
 
     output_min_length: int = 3
-    output_max_length: int = 20
+    output_max_length: int = DEFAULT_MAX_GENERATION_LEN
 
     generation_top_p: float = 1.0
     generation_top_k: int = 0
@@ -637,11 +654,18 @@ def eval_lm_loss(model, tokenizer, config, trainer, lm_val_dataloader, max_batch
         losses.append(lm_loss)
         if batch_idx >= max_batches:
             break
-    results = {"lm_val_loss": np.mean(losses)}
+    val_loss = np.mean(losses)
+    results = {"lm_val_loss": val_loss}
     if config.log_with == "wandb":
         wandb.log(results, commit=True, step=trainer.current_step)
     else:
         trainer.accelerator.log(results, step=trainer.current_step, log_kwargs={"commit": True})
+
+    if val_loss < trainer.best_val_loss:
+        trainer.best_val_loss = val_loss
+        print(f"New best val loss: {val_loss:.4f}, saving checkpoint")
+        model.save_pretrained(os.path.join(CKPT_DIR_BEST_VAL_LOSS, config.exp_name))
+        tokenizer.save_pretrained(os.path.join(CKPT_DIR_BEST_VAL_LOSS, config.exp_name))
 
 
 def eval(model, tokenizer, config, trainer, lm_val_dataloader):
@@ -735,6 +759,10 @@ def main():
                    zip(rewards, response_lengths)]
 
         return rewards
+
+    ppo_trainer.best_val_loss = math.inf
+    ppo_trainer.best_zorro = 0
+    ppo_trainer.best_blimp = 0
 
     query_length_sampler = LengthSampler(config.query_min_length, config.query_max_length + 1)
     step = 0
