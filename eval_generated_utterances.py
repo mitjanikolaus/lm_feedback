@@ -1,3 +1,4 @@
+import argparse
 import glob
 import os
 
@@ -14,15 +15,15 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-def eval(model_path, eval_model_path, batch_size=1024, num_batches=10, output_max_length=DEFAULT_MAX_GENERATION_LEN):
-    model = AutoModelForCausalLM.from_pretrained(model_path)
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
+def eval(args):
+    model = AutoModelForCausalLM.from_pretrained(args.model_path)
+    tokenizer = AutoTokenizer.from_pretrained(args.model_path)
     model.eval()
 
-    hparams = yaml.safe_load(open(os.path.join(eval_model_path, "hparams.yaml")))
+    hparams = yaml.safe_load(open(os.path.join(args.eval_model_path, "hparams.yaml")))
     eval_model_tokenizer = AutoTokenizer.from_pretrained(hparams["model_name_or_path"], use_fast=True)
 
-    checkpoints = list(glob.glob(os.path.join(eval_model_path, "checkpoints", "epoch*.ckpt")))
+    checkpoints = list(glob.glob(os.path.join(args.eval_model_path, "checkpoints", "epoch*.ckpt")))
     assert len(checkpoints) == 1, f"No or multiple checkpoints found: {checkpoints}"
     checkpoint = checkpoints[0]
     print(f"Model checkpoint: {checkpoint}")
@@ -61,33 +62,30 @@ def eval(model_path, eval_model_path, batch_size=1024, num_batches=10, output_ma
         return scores.cpu().numpy()
 
     all_scores = []
-    for _ in tqdm(range(num_batches)):
-        batch = generate(model, tokenizer, batch_size, output_max_length)
+    for i in tqdm(range(args.num_batches)):
+        batch = generate(model, tokenizer, args.batch_size, args.output_max_length)
         scores = compute_scores(batch, eval_model, eval_model_tokenizer)
         all_scores.extend(scores)
-        # df = pd.DataFrame.from_dict({"utterances": batch['utts_decoded'], "scores": scores})
-        # print(df)
+        if i == 0:
+            df = pd.DataFrame.from_dict({"utterances": batch['utts_decoded'], "scores": scores})
+            print(df.sort_values("scores"))
 
-    print(f"Score for {model_path}: {np.mean(all_scores):.2f}")
+    print(f"Score for {args.model_path}: {np.mean(all_scores):.3f}")
+
+
+def get_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--model_path", type=str)
+    parser.add_argument("--eval_model_path", type=str)
+
+    parser.add_argument("--batch_size", type=int, default=1024)
+    parser.add_argument("--num_batches", type=int, default=10)
+    parser.add_argument("--output_max_length", type=int, default=DEFAULT_MAX_GENERATION_LEN)
+
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
-    batch_size = 100
-    num_batches = 10
-    eval_model_path = os.path.expanduser('~/data/childes_grammaticality/lightning_logs/version_6/')
-
-    eval(model_path='lightning_logs/4w7g7e0i/ckpt_huggingface_best',
-         eval_model_path=eval_model_path,
-         batch_size=batch_size)
-
-    eval(model_path='ckpts_ppo/best_blimp/1e6_seed_2/',
-         eval_model_path=eval_model_path,
-         batch_size=batch_size)
-
-    # eval(model_path='ckpts_ppo/best_zorro/1e6_seed_2/',
-    #      eval_model_path=eval_model_path,
-    #      batch_size=batch_size)
-
-    eval(model_path='ckpts_ppo/1e6_seed_2/',
-         eval_model_path=eval_model_path,
-         batch_size=batch_size)
+    args = get_args()
+    eval(args)
