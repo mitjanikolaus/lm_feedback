@@ -16,7 +16,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 def eval(args):
-    model = AutoModelForCausalLM.from_pretrained(args.model_path)
+    model = AutoModelForCausalLM.from_pretrained(args.model_path).to(device)
     tokenizer = AutoTokenizer.from_pretrained(args.model_path)
     model.eval()
 
@@ -27,7 +27,7 @@ def eval(args):
     assert len(eval_model_checkpoints) == 1, f"No or multiple checkpoints found in dir {args.eval_model_path}: {eval_model_checkpoints}"
     eval_model_checkpoint = eval_model_checkpoints[0]
     print(f"Model checkpoint: {eval_model_checkpoint}")
-    eval_model = CHILDESGrammarModel.load_from_checkpoint(eval_model_checkpoint)
+    eval_model = CHILDESGrammarModel.load_from_checkpoint(eval_model_checkpoint).to(device)
     eval_model.eval()
 
     def generate(model, tokenizer, batch_size, output_max_length):
