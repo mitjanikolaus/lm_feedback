@@ -27,8 +27,7 @@ def eval(args):
     assert len(checkpoints) == 1, f"No or multiple checkpoints found: {checkpoints}"
     checkpoint = checkpoints[0]
     print(f"Model checkpoint: {checkpoint}")
-    eval_model = CHILDESGrammarModel.load_from_checkpoint(checkpoint,
-                                                          strict=False)  # TODO upgrade huggingface/torch version?
+    eval_model = CHILDESGrammarModel.load_from_checkpoint(checkpoint)
     eval_model.eval()
 
     def generate(model, tokenizer, batch_size, output_max_length):
