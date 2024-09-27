@@ -23,11 +23,11 @@ def eval(args):
     hparams = yaml.safe_load(open(os.path.join(args.eval_model_path, "hparams.yaml")))
     eval_model_tokenizer = AutoTokenizer.from_pretrained(hparams["model_name_or_path"], use_fast=True)
 
-    checkpoints = list(glob.glob(os.path.join(args.eval_model_path, "checkpoints", "epoch*.ckpt")))
-    assert len(checkpoints) == 1, f"No or multiple checkpoints found: {checkpoints}"
-    checkpoint = checkpoints[0]
-    print(f"Model checkpoint: {checkpoint}")
-    eval_model = CHILDESGrammarModel.load_from_checkpoint(checkpoint)
+    eval_model_checkpoints = list(glob.glob(os.path.join(args.eval_model_path, "checkpoints", "epoch*.ckpt")))
+    assert len(eval_model_checkpoints) == 1, f"No or multiple checkpoints found in dir {args.eval_model_path}: {eval_model_checkpoints}"
+    eval_model_checkpoint = eval_model_checkpoints[0]
+    print(f"Model checkpoint: {eval_model_checkpoint}")
+    eval_model = CHILDESGrammarModel.load_from_checkpoint(eval_model_checkpoint)
     eval_model.eval()
 
     def generate(model, tokenizer, batch_size, output_max_length):
