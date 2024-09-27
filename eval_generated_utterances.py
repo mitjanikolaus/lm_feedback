@@ -69,7 +69,7 @@ def eval(args):
             df = pd.DataFrame.from_dict({"utterances": batch['utts_decoded'], "scores": scores})
             print(df.sort_values("scores"))
 
-    print(f"Score for {args.model_path}: {np.mean(all_scores):.3f}")
+    print(f"Score for {args.model_path} (avg over {len(all_scores)} samples): {np.mean(all_scores):.3f}")
 
 
 def get_args():
