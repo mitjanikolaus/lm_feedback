@@ -43,7 +43,6 @@ def eval_generations(args):
         return batch
 
     def compute_scores(batch, value_model, value_model_tokenizer, tokenizer):
-
         utterances = batch["utts_decoded"]
         utt_lengths = [(utt != torch.tensor(tokenizer.pad_token_id)).sum() - 1 for utt in batch["utts"]]
         utterances = [utt for utt, utt_len in zip(utterances, utt_lengths) if utt_len > DEFAULT_MIN_GENERATION_LEN]
@@ -61,7 +60,7 @@ def eval_generations(args):
         logits = value_model_outputs["logits"]
         scores = torch.argmax(logits, dim=1)
         scores = scores - 1
-        return scores.cpu().numpy()
+        return scores.cpu().numpy(), utterances
 
     pd.set_option('display.max_rows', 100)
     pd.set_option('display.width', 300)
@@ -87,12 +86,12 @@ def eval_generations(args):
         sample_df = None
         for i in range(args.num_batches):
             batch = generate(model, tokenizer, args.batch_size, args.output_max_length)
-            scores = compute_scores(batch, eval_model, eval_model_tokenizer, tokenizer)
+            scores, utterances = compute_scores(batch, eval_model, eval_model_tokenizer, tokenizer)
             all_scores.extend(scores)
-            # if i == 0:
-            #     sample_df = pd.DataFrame.from_dict({"utterances": batch['utts_decoded'], "scores": scores})
-        # print("\n\n")
-        # print(sample_df.sort_values("scores"))
+            if i == 0:
+                sample_df = pd.DataFrame.from_dict({"utterances": utterances, "scores": scores})
+        print("\n\n")
+        print(sample_df.sort_values("scores"))
 
         print(f"Score for {model_path} (avg over {len(all_scores)} samples): {np.mean(all_scores):.3f}")
         scores_dict[model_path] = np.mean(all_scores)
