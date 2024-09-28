@@ -16,9 +16,14 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 def eval(args):
-    model = AutoModelForCausalLM.from_pretrained(args.model_path).to(device)
-    tokenizer = AutoTokenizer.from_pretrained(args.model_path)
-    model.eval()
+    models = {}
+    tokenizers = {}
+    for model_path in args.model_paths:
+        model = AutoModelForCausalLM.from_pretrained(args.model_path).to(device)
+        tokenizer = AutoTokenizer.from_pretrained(args.model_path)
+        model.eval()
+        models[model_path] = model
+        tokenizers[model_path] = tokenizer
 
     hparams = yaml.safe_load(open(os.path.join(args.eval_model_path, "hparams.yaml")))
     eval_model_tokenizer = AutoTokenizer.from_pretrained(hparams["model_name_or_path"], use_fast=True)
@@ -75,24 +80,29 @@ def eval(args):
     print("Sanity check for eval model: ")
     print(df.sort_values("scores"))
 
-    all_scores = []
-    sample_df = None
-    for i in range(args.num_batches):
-        batch = generate(model, tokenizer, args.batch_size, args.output_max_length)
-        scores = compute_scores(batch, eval_model, eval_model_tokenizer)
-        all_scores.extend(scores)
-        if i == 0:
-            sample_df = pd.DataFrame.from_dict({"utterances": batch['utts_decoded'], "scores": scores})
-    print("\n\n")
-    print(sample_df.sort_values("scores"))
+    scores_dict = {}
+    for model_path in args.model_paths:
+        all_scores = []
+        sample_df = None
+        for i in range(args.num_batches):
+            batch = generate(models[model_path], tokenizers[model_path], args.batch_size, args.output_max_length)
+            scores = compute_scores(batch, eval_model, eval_model_tokenizer)
+            all_scores.extend(scores)
+            if i == 0:
+                sample_df = pd.DataFrame.from_dict({"utterances": batch['utts_decoded'], "scores": scores})
+        print("\n\n")
+        print(sample_df.sort_values("scores"))
 
-    print(f"Score for {args.model_path} (avg over {len(all_scores)} samples): {np.mean(all_scores):.3f}")
+        print(f"Score for {model_path} (avg over {len(all_scores)} samples): {np.mean(all_scores):.3f}")
+        scores_dict[model_path] = np.mean(all_scores)
+
+    print(scores_dict)
 
 
 def get_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--model_path", type=str)
+    parser.add_argument("--model_paths", type=str)
     parser.add_argument("--eval_model_path", type=str)
 
     parser.add_argument("--batch_size", type=int, default=1024)
