@@ -67,15 +67,19 @@ def eval(args):
     df = pd.DataFrame.from_dict({"utterances": batch['utts_decoded'], "scores": scores})
     print("Sanity check for eval model: ")
     print(df.sort_values("scores"))
+    print("\n\n\n")
 
     all_scores = []
+    sample_df = None
     for i in tqdm(range(args.num_batches)):
         batch = generate(model, tokenizer, args.batch_size, args.output_max_length)
         scores = compute_scores(batch, eval_model, eval_model_tokenizer)
         all_scores.extend(scores)
         if i == 0:
-            df = pd.DataFrame.from_dict({"utterances": batch['utts_decoded'], "scores": scores})
-            print(df.sort_values("scores"))
+            sample_df = pd.DataFrame.from_dict({"utterances": batch['utts_decoded'], "scores": scores})
+
+    print("\n\n")
+    print(sample_df.sort_values("scores"))
 
     print(f"Score for {args.model_path} (avg over {len(all_scores)} samples): {np.mean(all_scores):.3f}")
 
