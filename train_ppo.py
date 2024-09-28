@@ -38,6 +38,7 @@ CKPT_DIR_BEST_VAL_LOSS = os.path.join("ckpts_ppo", "best_val_loss")
 CKPT_DIR_BEST_ZORRO = os.path.join("ckpts_ppo", "best_zorro")
 CKPT_DIR_BEST_BLIMP = os.path.join("ckpts_ppo", "best_blimp")
 
+DEFAULT_MIN_GENERATION_LEN = 3
 DEFAULT_MAX_GENERATION_LEN = 20
 
 
@@ -612,7 +613,7 @@ class CfPPOConfig(PPOConfig):
     batch_size: int = 1024
     mini_batch_size: int = 512
 
-    output_min_length: int = 3
+    output_min_length: int = DEFAULT_MIN_GENERATION_LEN
     output_max_length: int = DEFAULT_MAX_GENERATION_LEN
 
     generation_top_p: float = 1.0
@@ -672,6 +673,35 @@ def eval(model, tokenizer, config, trainer, lm_val_dataloader):
     eval_lm_loss(model, tokenizer, config, trainer, lm_val_dataloader)
     eval_babylm(model, tokenizer, model_args=f"pretrained={os.path.join(CKPT_DIR, config.exp_name)},add_bos_token=True",
                 ppo_trainer=trainer, device=trainer.accelerator.device.index, config=config)
+
+
+def compute_rewards(utterances, response_tensors, value_model, value_model_tokenizer, output_min_length,
+                    output_max_length, score_clip, length_reward_coef):
+    if value_model is None:
+        rewards = [torch.tensor(1) for _ in range(len(utterances))]
+    else:
+        texts_encoded = value_model_tokenizer(utterances, padding=True, truncation=True, return_tensors="pt",
+                                              max_length=output_max_length + 10)
+        with torch.no_grad():
+            value_model_outputs = value_model(**texts_encoded)
+        rewards = value_model_outputs.logits.squeeze()
+        rewards = F.sigmoid(rewards)
+        rewards = [torch.tensor(r.item()) for r in rewards]
+
+    # score clipping (before addition of length reward and rejection sampling!)
+    if score_clip is not None:
+        rewards = [torch.clip(reward, -score_clip, score_clip) for reward in rewards]
+
+    # rejection sampling: replace reward with -1 if produced sample is too short
+    response_lengths = [len(resp) - 1 for resp in response_tensors]
+    rewards = [r if length >= output_min_length else torch.tensor(-1.0) for r, length in
+               zip(rewards, response_lengths)]
+
+    # length reward
+    rewards = [r + length_reward_coef * length if r > 0.5 else r for r, length in
+               zip(rewards, response_lengths)]
+
+    return rewards
 
 
 def main():
@@ -740,34 +770,6 @@ def main():
 
         return batch, response_tensors, query_tensors
 
-    def compute_rewards(queries, responses, response_tensors, value_model, value_model_tokenizer, config):
-        if config.value_model == "baseline_constant":
-            rewards = [torch.tensor(1) for _ in range(len(queries))]
-        else:
-            texts = [(q + r).strip() for q, r in zip(queries, responses)]
-            texts_encoded = value_model_tokenizer(texts, padding=True, truncation=True, return_tensors="pt",
-                                                  max_length=config.output_max_length + 10)
-            with torch.no_grad():
-                value_model_outputs = value_model(**texts_encoded)
-            rewards = value_model_outputs.logits.squeeze()
-            rewards = F.sigmoid(rewards)
-            rewards = [torch.tensor(r.item()) for r in rewards]
-
-        # score clipping (before addition of length reward and rejection sampling!)
-        if config.score_clip is not None:
-            rewards = [torch.clip(reward, -config.score_clip, config.score_clip) for reward in rewards]
-
-        # rejection sampling: replace reward with -1 if produced sample is too short
-        response_lengths = [len(resp) - 1 for resp in response_tensors]
-        rewards = [r if length >= config.output_min_length else torch.tensor(-1.0) for r, length in
-                   zip(rewards, response_lengths)]
-
-        # length reward
-        rewards = [r + config.length_reward_coef * length if r > 0.5 else r for r, length in
-                   zip(rewards, response_lengths)]
-
-        return rewards
-
     ppo_trainer.best_val_loss = math.inf
     ppo_trainer.best_zorro = 0
     ppo_trainer.best_blimp = 0
@@ -784,8 +786,10 @@ def main():
 
             use_queries = config.query_max_length > 0
             batch, response_tensors, query_tensors = generate(batch, query_length_sampler, use_queries)
+            utterances = [(q + r).strip() for q, r in zip(batch["query"], batch["response"])]
             rewards = compute_rewards(
-                batch["query"], batch["response"], response_tensors, value_model, value_model_tokenizer, config
+                utterances, response_tensors, value_model, value_model_tokenizer,
+                config.output_min_length, config.output_max_length, config.score_clip, config.length_reward_coef
             )
 
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards, lm_inputs=batch["input_ids"],
