@@ -62,8 +62,8 @@ def eval(args):
         return scores.cpu().numpy()
 
     pd.set_option('display.max_rows', 100)
-    pd.set_option('display.width', 1000)
-    pd.set_option('display.max_colwidth', 1000)
+    pd.set_option('display.width', 300)
+    pd.set_option('display.max_colwidth', 200)
 
     # sanity check
     test_utts = ["I like this.", "like this.", "What is this?", "What this?", "He like that.", "He likes that.",
