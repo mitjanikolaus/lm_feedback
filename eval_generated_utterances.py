@@ -14,16 +14,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-def eval(args):
-    models = {}
-    tokenizers = {}
-    for model_path in args.model_paths:
-        model = AutoModelForCausalLM.from_pretrained(model_path).to(device)
-        tokenizer = AutoTokenizer.from_pretrained(model_path)
-        model.eval()
-        models[model_path] = model
-        tokenizers[model_path] = tokenizer
-
+def eval_generations(args):
     hparams = yaml.safe_load(open(os.path.join(args.eval_model_path, "hparams.yaml")))
     eval_model_tokenizer = AutoTokenizer.from_pretrained(hparams["model_name_or_path"], use_fast=True)
 
@@ -81,10 +72,14 @@ def eval(args):
 
     scores_dict = {}
     for model_path in args.model_paths:
+        model = AutoModelForCausalLM.from_pretrained(model_path).to(device)
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
+        model.eval()
+
         all_scores = []
         sample_df = None
         for i in range(args.num_batches):
-            batch = generate(models[model_path], tokenizers[model_path], args.batch_size, args.output_max_length)
+            batch = generate(model, tokenizer, args.batch_size, args.output_max_length)
             scores = compute_scores(batch, eval_model, eval_model_tokenizer)
             all_scores.extend(scores)
             if i == 0:
@@ -113,4 +108,4 @@ def get_args():
 
 if __name__ == "__main__":
     args = get_args()
-    eval(args)
+    eval_generations(args)
