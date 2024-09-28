@@ -49,7 +49,7 @@ def eval(args):
 
     def compute_scores(batch, value_model, value_model_tokenizer):
         # TODO ignore sentences that don't contain EOS token?!
-        speaker_code = 'CHI'
+        speaker_code = '[CHI]'
         utterances = [speaker_code+u for u in batch["utts_decoded"]]
         texts_encoded = value_model_tokenizer(utterances, padding=True, return_tensors="pt")
         texts_encoded = texts_encoded.to(device)
