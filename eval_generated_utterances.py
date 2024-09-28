@@ -102,7 +102,7 @@ def eval(args):
 def get_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--model_paths", type=str)
+    parser.add_argument("--model_paths", type=str, nargs="+")
     parser.add_argument("--eval_model_path", type=str)
 
     parser.add_argument("--batch_size", type=int, default=1024)
