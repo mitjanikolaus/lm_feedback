@@ -60,6 +60,9 @@ def eval(args):
         scores = scores - 1
         return scores.cpu().numpy()
 
+    pd.set_option('display.max_rows', 100)
+    pd.set_option('display.width', 1000)
+
     # sanity check
     test_utts = ["I like this.", "like this.", "What is this?", "What this?", "He like that.", "He likes that."]
     batch = {"utts_decoded": test_utts}
@@ -71,7 +74,7 @@ def eval(args):
 
     all_scores = []
     sample_df = None
-    for i in tqdm(range(args.num_batches)):
+    for i in range(args.num_batches):
         batch = generate(model, tokenizer, args.batch_size, args.output_max_length)
         scores = compute_scores(batch, eval_model, eval_model_tokenizer)
         all_scores.extend(scores)
