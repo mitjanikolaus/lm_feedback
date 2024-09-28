@@ -72,17 +72,16 @@ def eval(args):
     print(df.sort_values("scores"))
     print("\n\n\n")
 
-    all_scores = []
-    sample_df = None
-    for i in range(args.num_batches):
-        batch = generate(model, tokenizer, args.batch_size, args.output_max_length)
-        scores = compute_scores(batch, eval_model, eval_model_tokenizer)
-        all_scores.extend(scores)
-        if i == 0:
-            sample_df = pd.DataFrame.from_dict({"utterances": batch['utts_decoded'], "scores": scores})
-
-    print("\n\n")
-    print(sample_df.sort_values("scores"))
+    # all_scores = []
+    # sample_df = None
+    # for i in range(args.num_batches):
+    #     batch = generate(model, tokenizer, args.batch_size, args.output_max_length)
+    #     scores = compute_scores(batch, eval_model, eval_model_tokenizer)
+    #     all_scores.extend(scores)
+    #     if i == 0:
+    #         sample_df = pd.DataFrame.from_dict({"utterances": batch['utts_decoded'], "scores": scores})
+    # print("\n\n")
+    # print(sample_df.sort_values("scores"))
 
     print(f"Score for {args.model_path} (avg over {len(all_scores)} samples): {np.mean(all_scores):.3f}")
 
