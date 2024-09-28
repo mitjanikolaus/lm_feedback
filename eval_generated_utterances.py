@@ -65,13 +65,14 @@ def eval(args):
     pd.set_option('display.width', 1000)
 
     # sanity check
-    test_utts = ["I like this.", "like this.", "What is this?", "What this?", "He like that.", "He likes that."]
+    test_utts = ["I like this.", "like this.", "What is this?", "What this?", "He like that.", "He likes that.",
+                 "They like him.", "Do this now.", "She likes himself.", "She likes herself.", "This is an apple.",
+                 "This is a apple.", "Do you want an banana?", "Do you want a banana?"]
     batch = {"utts_decoded": test_utts}
     scores = compute_scores(batch, eval_model, eval_model_tokenizer)
     df = pd.DataFrame.from_dict({"utterances": batch['utts_decoded'], "scores": scores})
     print("Sanity check for eval model: ")
     print(df.sort_values("scores"))
-    print("\n\n\n")
 
     all_scores = []
     sample_df = None
