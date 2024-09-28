@@ -6,7 +6,6 @@ import numpy as np
 import pandas as pd
 import torch
 import yaml
-from tqdm import tqdm
 
 from grammaticality_annotation.fine_tune_grammaticality_nn import CHILDESGrammarModel
 from train_ppo import DEFAULT_MAX_GENERATION_LEN
@@ -19,8 +18,8 @@ def eval(args):
     models = {}
     tokenizers = {}
     for model_path in args.model_paths:
-        model = AutoModelForCausalLM.from_pretrained(args.model_path).to(device)
-        tokenizer = AutoTokenizer.from_pretrained(args.model_path)
+        model = AutoModelForCausalLM.from_pretrained(model_path).to(device)
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
         model.eval()
         models[model_path] = model
         tokenizers[model_path] = tokenizer
