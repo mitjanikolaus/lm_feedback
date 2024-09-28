@@ -8,7 +8,7 @@ import torch
 import yaml
 
 from grammaticality_annotation.fine_tune_grammaticality_nn import CHILDESGrammarModel
-from train_ppo import DEFAULT_MAX_GENERATION_LEN
+from train_ppo import DEFAULT_MAX_GENERATION_LEN, DEFAULT_MIN_GENERATION_LEN
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -42,10 +42,17 @@ def eval_generations(args):
 
         return batch
 
-    def compute_scores(batch, value_model, value_model_tokenizer):
-        # TODO ignore sentences that don't contain EOS token?!
+    def compute_scores(batch, value_model, value_model_tokenizer, tokenizer):
+
+        utterances = batch["utts_decoded"]
+        utt_lengths = [(utt != torch.tensor(tokenizer.pad_token_id)).sum() - 1 for utt in batch["utts"]]
+        utterances = [utt for utt, utt_len in zip(utterances, utt_lengths) if utt_len > DEFAULT_MIN_GENERATION_LEN]
+
+        utts_finished = [tokenizer.eos_token_id in utt for utt in batch["utts"]]
+        utterances = [utt for utt, utt_finished in zip(utterances, utts_finished) if utt_finished]
+
         speaker_code = '[CHI]'
-        utterances = [speaker_code+u for u in batch["utts_decoded"]]
+        utterances = [speaker_code+u for u in utterances]
         texts_encoded = value_model_tokenizer(utterances, padding=True, return_tensors="pt")
         texts_encoded = texts_encoded.to(device)
         with torch.no_grad():
@@ -61,14 +68,14 @@ def eval_generations(args):
     pd.set_option('display.max_colwidth', 200)
 
     # sanity check
-    test_utts = ["I like this.", "like this.", "What is this?", "What this?", "He like that.", "He likes that.",
-                 "They like him.", "Do this now.", "She likes himself.", "She likes herself.", "This is an apple.",
-                 "This is a apple.", "Do you want an banana?", "Do you want a banana?"]
-    batch = {"utts_decoded": test_utts}
-    scores = compute_scores(batch, eval_model, eval_model_tokenizer)
-    df = pd.DataFrame.from_dict({"utterances": batch['utts_decoded'], "scores": scores})
-    print("Sanity check for eval model: ")
-    print(df.sort_values("scores"))
+    # test_utts = ["I like this.", "like this.", "What is this?", "What this?", "He like that.", "He likes that.",
+    #              "They like him.", "Do this now.", "She likes himself.", "She likes herself.", "This is an apple.",
+    #              "This is a apple.", "Do you want an banana?", "Do you want a banana?"]
+    # batch = {"utts_decoded": test_utts}
+    # scores = compute_scores(batch, eval_model, eval_model_tokenizer)
+    # df = pd.DataFrame.from_dict({"utterances": batch['utts_decoded'], "scores": scores})
+    # print("Sanity check for eval model: ")
+    # print(df.sort_values("scores"))
 
     scores_dict = {}
     for model_path in args.model_paths:
@@ -80,7 +87,7 @@ def eval_generations(args):
         sample_df = None
         for i in range(args.num_batches):
             batch = generate(model, tokenizer, args.batch_size, args.output_max_length)
-            scores = compute_scores(batch, eval_model, eval_model_tokenizer)
+            scores = compute_scores(batch, eval_model, eval_model_tokenizer, tokenizer)
             all_scores.extend(scores)
             if i == 0:
                 sample_df = pd.DataFrame.from_dict({"utterances": batch['utts_decoded'], "scores": scores})
