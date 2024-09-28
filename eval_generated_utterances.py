@@ -60,15 +60,13 @@ def eval(args):
         scores = scores - 1
         return scores.cpu().numpy()
 
-    def sanity_check_eval_model(eval_model, eval_model_tokenizer):
-        test_utts = ["I like this.", "like this.", "What is this?", "What this?", "He like that.", "He likes that."]
-        batch = {"utts_decoded": test_utts}
-        scores = compute_scores(batch, eval_model, eval_model_tokenizer)
-        df = pd.DataFrame.from_dict({"utterances": batch['utts_decoded'], "scores": scores})
-        print("Sanity check for eval model: ")
-        print(df.sort_values("scores"))
-
-    sanity_check_eval_model(eval_model, eval_model_tokenizer)
+    # sanity check
+    test_utts = ["I like this.", "like this.", "What is this?", "What this?", "He like that.", "He likes that."]
+    batch = {"utts_decoded": test_utts}
+    scores = compute_scores(batch, eval_model, eval_model_tokenizer)
+    df = pd.DataFrame.from_dict({"utterances": batch['utts_decoded'], "scores": scores})
+    print("Sanity check for eval model: ")
+    print(df.sort_values("scores"))
 
     all_scores = []
     for i in tqdm(range(args.num_batches)):
