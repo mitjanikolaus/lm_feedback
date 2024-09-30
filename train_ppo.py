@@ -629,7 +629,7 @@ class CfPPOConfig(PPOConfig):
     query_min_length: int = 1
     query_max_length: int = 2
 
-    lm_val_batch_size: int = 1024
+    lm_val_batch_size: int = 512
 
     eval_metrics: List[str] = field(default_factory=lambda: DEFAULT_EVAL_METRICS)
 
