@@ -1,14 +1,12 @@
 import argparse
-import glob
-import os
+import itertools
 
 import numpy as np
 import pandas as pd
 import torch
-import yaml
+from scipy.stats import spearmanr, pearsonr
 from tqdm import tqdm
 
-from grammaticality_annotation.fine_tune_grammaticality_nn import CHILDESGrammarModel
 from train_ppo import DEFAULT_MAX_GENERATION_LEN, compute_rewards, DEFAULT_MIN_GENERATION_LEN
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSequenceClassification
 
@@ -46,29 +44,49 @@ def eval(args):
 
         return batch
 
-    def compute_scores(batch, reward_model, reward_model_tokenizer):
-        texts_encoded = reward_model_tokenizer(batch["utts_decoded"], padding=True, return_tensors="pt")
-        texts_encoded = texts_encoded.to(device)
-        with torch.no_grad():
-            value_model_outputs = reward_model(**texts_encoded)
-
-        logits = value_model_outputs["logits"]
-        scores = torch.argmax(logits, dim=1)
-        scores = scores - 1
-        return scores.cpu().numpy()
-
     all_scores = {path: [] for path in args.reward_model_paths}
-    for _ in tqdm(range(args.num_batches)):
+    utts_dict = {}
+    for i in tqdm(range(args.num_batches)):
         batch = generate(model, tokenizer, args.batch_size, args.output_max_length)
-        for reward_model_path in args.reward_model_paths:
+        if i == 0:
+            utts_dict = {"utterances": batch["utts_decoded"]}
+
+        for r, reward_model_path in enumerate(args.reward_model_paths):
+            utterances = batch["utts_decoded"]
+            utt_lengths = [(utt != torch.tensor(tokenizer.pad_token_id)).sum() - 1 for utt in batch["utts"]]
+            utterances = [utt for utt, utt_len in zip(utterances, utt_lengths) if utt_len > DEFAULT_MIN_GENERATION_LEN]
+            utt_lengths = [utt_len for utt_len in utt_lengths if utt_len > DEFAULT_MIN_GENERATION_LEN]
+
             rewards = compute_rewards(
-                batch["utts_decoded"], reward_models[reward_model_path], reward_model_tokenizers[reward_model_path],
+                utterances, utt_lengths, reward_models[reward_model_path], reward_model_tokenizers[reward_model_path],
                 DEFAULT_MIN_GENERATION_LEN, DEFAULT_MAX_GENERATION_LEN, score_clip=None, length_reward_coef=None
             )
+            rewards = torch.stack(rewards).cpu().numpy()
             all_scores[reward_model_path].extend(rewards)
 
-    #TODO rank-order correlation -> spearman?
-    print(f"Score for {args.model_path} (avg over {len(all_scores)} samples): {np.mean(all_scores):.3f}")
+            if i == 0:
+                utts_dict[f"scores_{r}"] = rewards
+
+        if i == 0:
+            pd.set_option('display.max_rows', 100)
+            pd.set_option('display.width', 2000)
+            pd.set_option('display.max_colwidth', None)
+            pd.set_option('display.precision', 2)
+            pd.set_option("expand_frame_repr", False)
+
+            shortest = np.min([len(utts_dict[f"scores_{r}"]) for r in range(len(args.reward_model_paths))])
+            for key in utts_dict.keys():
+                utts_dict[key] = utts_dict[key][:shortest]
+            sample_df = pd.DataFrame.from_dict(utts_dict)
+            print("\n")
+            print(sample_df[sample_df.utterances.str.len() < 100].sort_values('scores_0'))
+
+    for pair in itertools.combinations(all_scores.keys(), r=2):
+        print(pair)
+        correlation = spearmanr(all_scores[pair[0]], all_scores[pair[1]])
+        print("spearman corr: ", correlation)
+        correlation_pearson = pearsonr(all_scores[pair[0]], all_scores[pair[1]])
+        print("pearson corr: ", correlation_pearson)
 
 
 def get_args():
@@ -77,8 +95,8 @@ def get_args():
     parser.add_argument("--model_path", type=str)
     parser.add_argument("--reward_model_paths", type=str, nargs="+")
 
-    parser.add_argument("--batch_size", type=int, default=1024)
-    parser.add_argument("--num_batches", type=int, default=10)
+    parser.add_argument("--batch_size", type=int, default=100)
+    parser.add_argument("--num_batches", type=int, default=100)
     parser.add_argument("--output_max_length", type=int, default=DEFAULT_MAX_GENERATION_LEN)
 
     return parser.parse_args()
