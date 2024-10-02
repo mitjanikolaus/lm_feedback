@@ -49,8 +49,8 @@ def eval_generations(args):
         utterances = [utt for utt, utt_len in zip(utterances, utt_lengths) if utt_len > DEFAULT_MIN_GENERATION_LEN]
         # print(f"utterances with sufficient lengths: {len(utterances)}")
 
-        utts_finished = [tokenizer.eos_token_id in utt for utt in batch["utts"]]
-        utterances = [utt for utt, utt_finished in zip(utterances, utts_finished) if utt_finished]
+        # utts_finished = [tokenizer.eos_token_id in utt for utt in batch["utts"]]
+        # utterances = [utt for utt, utt_finished in zip(utterances, utts_finished) if utt_finished]
         # print(f"utterances with sufficient lengths that finished: {len(utterances)}")
 
         if len(utterances) == 0:
