@@ -44,15 +44,20 @@ def eval_generations(args):
 
     def compute_scores(batch, value_model, value_model_tokenizer, tokenizer):
         utterances = batch["utts_decoded"]
+        print(f"computing scores for {len(utterances)} utterances")
         utt_lengths = [(utt != torch.tensor(tokenizer.pad_token_id)).sum() - 1 for utt in batch["utts"]]
         utterances = [utt for utt, utt_len in zip(utterances, utt_lengths) if utt_len > DEFAULT_MIN_GENERATION_LEN]
+        print(f"utterances with sufficient lengths: {len(utterances)}")
 
         utts_finished = [tokenizer.eos_token_id in utt for utt in batch["utts"]]
         utterances = [utt for utt, utt_finished in zip(utterances, utts_finished) if utt_finished]
+        print(f"utterances with sufficient lengths that finisehd: {len(utterances)}")
+
+        if len(utterances) == 0:
+            return [None], [None]
 
         speaker_code = '[CHI]'
         utterances = [speaker_code+u for u in utterances]
-        print(f"computing scores for {len(utterances)} utterances")
         texts_encoded = value_model_tokenizer(utterances, padding=True, return_tensors="pt")
         texts_encoded = texts_encoded.to(device)
         with torch.no_grad():
