@@ -51,10 +51,10 @@ def eval_generations(args):
 
         utts_finished = [tokenizer.eos_token_id in utt for utt in batch["utts"]]
         utterances = [utt for utt, utt_finished in zip(utterances, utts_finished) if utt_finished]
-        print(f"utterances with sufficient lengths that finisehd: {len(utterances)}")
+        print(f"utterances with sufficient lengths that finished: {len(utterances)}")
 
         if len(utterances) == 0:
-            return [None], [None]
+            return [], []
 
         speaker_code = '[CHI]'
         utterances = [speaker_code+u for u in utterances]
