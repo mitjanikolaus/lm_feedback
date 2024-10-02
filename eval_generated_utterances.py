@@ -52,6 +52,7 @@ def eval_generations(args):
 
         speaker_code = '[CHI]'
         utterances = [speaker_code+u for u in utterances]
+        print(f"computing scores for {len(utterances)} utterances")
         texts_encoded = value_model_tokenizer(utterances, padding=True, return_tensors="pt")
         texts_encoded = texts_encoded.to(device)
         with torch.no_grad():
