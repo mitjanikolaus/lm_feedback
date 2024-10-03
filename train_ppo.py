@@ -34,9 +34,9 @@ tqdm.pandas()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 CKPT_DIR = "ckpts_ppo"
-CKPT_DIR_BEST_VAL_LOSS = os.path.join("ckpts_ppo", "best_val_loss")
-CKPT_DIR_BEST_ZORRO = os.path.join("ckpts_ppo", "best_zorro")
-CKPT_DIR_BEST_BLIMP = os.path.join("ckpts_ppo", "best_blimp")
+CKPT_DIR_BEST_VAL_LOSS = "best_val_loss"
+CKPT_DIR_BEST_ZORRO = "best_zorro"
+CKPT_DIR_BEST_BLIMP = "best_blimp"
 
 DEFAULT_MIN_GENERATION_LEN = 3
 DEFAULT_MAX_GENERATION_LEN = 20
@@ -565,11 +565,12 @@ def build_policy_trainer_datasets(data_path, lm_val_data_path, tokenizer, query_
     return ds_train, ds_val
 
 
-def eval_babylm(model, tokenizer, model_args, ppo_trainer, device, config, eval_batch_size=1024):
+def eval_babylm(model, tokenizer, ppo_trainer, device, config, epoch, eval_batch_size=1024):
     print("Evaluating babylm metrics")
-    model.save_pretrained(os.path.join(CKPT_DIR, config.exp_name))
-    tokenizer.save_pretrained(os.path.join(CKPT_DIR, config.exp_name))
+    ckpt_dir = os.path.join(CKPT_DIR, config.exp_name, f"epoch_{epoch}")
+    save_checkpoint(ckpt_dir, model, tokenizer)
 
+    model_args = f"pretrained={ckpt_dir},add_bos_token=True"
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         out = evaluator.simple_evaluate(
@@ -591,13 +592,11 @@ def eval_babylm(model, tokenizer, model_args, ppo_trainer, device, config, eval_
     if results['zorro_filtered_childes'] > ppo_trainer.best_zorro:
         ppo_trainer.best_zorro = results['zorro_filtered_childes']
         print(f"New best zorro: {results['zorro_filtered_childes']:.2f}, saving checkpoint")
-        model.save_pretrained(os.path.join(CKPT_DIR_BEST_ZORRO, config.exp_name))
-        tokenizer.save_pretrained(os.path.join(CKPT_DIR_BEST_ZORRO, config.exp_name))
+        save_checkpoint(os.path.join(CKPT_DIR, config.exp_name, CKPT_DIR_BEST_ZORRO), model, tokenizer)
     if results['blimp_filtered_childes'] > ppo_trainer.best_blimp:
         ppo_trainer.best_blimp = results['blimp_filtered_childes']
         print(f"New best blimp: {results['blimp_filtered_childes']:.2f}, saving checkpoint")
-        model.save_pretrained(os.path.join(CKPT_DIR_BEST_BLIMP, config.exp_name))
-        tokenizer.save_pretrained(os.path.join(CKPT_DIR_BEST_BLIMP, config.exp_name))
+        save_checkpoint(os.path.join(CKPT_DIR, config.exp_name, CKPT_DIR_BEST_BLIMP), model, tokenizer)
 
 
 @dataclass
@@ -665,14 +664,19 @@ def eval_lm_loss(model, tokenizer, config, trainer, lm_val_dataloader, max_batch
     if val_loss < trainer.best_val_loss:
         trainer.best_val_loss = val_loss
         print(f"New best val loss: {val_loss:.4f}, saving checkpoint")
-        model.save_pretrained(os.path.join(CKPT_DIR_BEST_VAL_LOSS, config.exp_name))
-        tokenizer.save_pretrained(os.path.join(CKPT_DIR_BEST_VAL_LOSS, config.exp_name))
+        save_checkpoint(os.path.join(CKPT_DIR, config.exp_name, CKPT_DIR_BEST_VAL_LOSS), model, tokenizer)
 
 
-def eval(model, tokenizer, config, trainer, lm_val_dataloader):
+def save_checkpoint(dir, model, tokenizer):
+    os.makedirs(dir, exist_ok=True)
+    model.save_pretrained(dir)
+    tokenizer.save_pretrained(dir)
+
+
+def eval(model, tokenizer, config, trainer, lm_val_dataloader, epoch):
     eval_lm_loss(model, tokenizer, config, trainer, lm_val_dataloader)
-    eval_babylm(model, tokenizer, model_args=f"pretrained={os.path.join(CKPT_DIR, config.exp_name)},add_bos_token=True",
-                ppo_trainer=trainer, device=trainer.accelerator.device.index, config=config)
+    eval_babylm(model, tokenizer, ppo_trainer=trainer, device=trainer.accelerator.device.index, config=config,
+                epoch=epoch)
 
 
 def compute_rewards(utterances, utt_lengths, value_model, value_model_tokenizer, output_min_length,
@@ -782,7 +786,7 @@ def main():
         epoch += 1
         for batch in tqdm(ppo_trainer.dataloader):
             if (config.eval_freq != -1) and (step % config.eval_freq == 0):
-                eval(model, tokenizer, config, ppo_trainer, lm_val_dataloader)
+                eval(model, tokenizer, config, ppo_trainer, lm_val_dataloader, epoch)
 
             use_queries = config.query_max_length > 0
             batch, response_tensors, query_tensors = generate(batch, query_length_sampler, use_queries)
