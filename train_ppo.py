@@ -470,7 +470,7 @@ class ChildesPPOTrainer(PPOTrainer):
             stats: dict,
             batch: dict,
             rewards: typing.List[torch.FloatTensor],
-            columns_to_log: typing.Iterable[str] = ("query", "response"),
+            columns_to_log: typing.Iterable[str] = ("query", "utterance"),
     ):
         """
         A function that logs all the training stats. Call it at the end of each epoch.
@@ -508,11 +508,11 @@ class ChildesPPOTrainer(PPOTrainer):
             logs = {}
 
             # Log stats
-            if "query" not in batch.keys() and "response" not in batch.keys():
+            if "query" not in batch.keys() and "utterance" not in batch.keys():
                 # warn the user that the game logs will not be logged
                 warnings.warn(
                     "The game logs will not be logged because the batch does not contain the keys 'query' and "
-                    "'response'. "
+                    "'utterance'. "
                 )
             elif self.config.log_with == "wandb":
                 table_rows = [list(r) for r in zip(*batch_list, rewards.cpu().tolist())]
@@ -775,7 +775,6 @@ def main():
 
         response_tensors = ppo_trainer.generate(query_tensors, return_prompt=False, **generation_kwargs)
         batch["query"] = [tokenizer.decode(q, skip_special_tokens=True) for q in query_tensors]
-        batch["response"] = [tokenizer.decode(r, skip_special_tokens=True) for r in response_tensors]
         batch["utterance"] = [tokenizer.decode(torch.cat((q, r)), skip_special_tokens=True) for q, r in
                               zip(query_tensors, response_tensors)]
         return batch, response_tensors, query_tensors
