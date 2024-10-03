@@ -543,10 +543,11 @@ class ChildesPPOTrainer(PPOTrainer):
 def load_lm_data(data_path, tokenizer, query_max_length, utt_max_length, keep_utt=True):
     with open(data_path, "r") as file:
         data = file.read().split("\n")
+
     ds = Dataset.from_list([{"utt": utt} for utt in data])
 
     def tokenize(sample):
-        sample["input_ids"] = tokenizer(sample["utt"], max_length=utt_max_length).input_ids
+        sample["input_ids"] = tokenizer(sample["utt"], max_length=utt_max_length, truncation=True).input_ids
         if not keep_utt:
             del sample["utt"]
         return sample
@@ -679,7 +680,7 @@ def eval(model, tokenizer, config, trainer, lm_val_dataloader, epoch):
                 epoch=epoch)
 
 
-def compute_rewards(utterances, utt_lengths, value_model, value_model_tokenizer, output_min_length,
+def compute_rewards(utterances, utt_lengths, utts_contain_eos, value_model, value_model_tokenizer, output_min_length,
                     output_max_length, score_clip, length_reward_coef):
     if value_model is None:
         rewards = [torch.tensor(1) for _ in range(len(utterances))]
@@ -699,6 +700,10 @@ def compute_rewards(utterances, utt_lengths, value_model, value_model_tokenizer,
     # rejection sampling: replace reward with -1 if produced sample is too short
     rewards = [r if length >= output_min_length else torch.tensor(-1.0) for r, length in
                zip(rewards, utt_lengths)]
+
+    # rejection sampling: replace reward with -1 if produced sample does not contain EOS token
+    rewards = [r if contains_eos else torch.tensor(-1.0) for r, contains_eos in
+               zip(rewards, utts_contain_eos)]
 
     # length reward
     if length_reward_coef is not None:
@@ -769,9 +774,10 @@ def main():
             query_tensors = config.batch_size * [bos_tensor]
 
         response_tensors = ppo_trainer.generate(query_tensors, return_prompt=False, **generation_kwargs)
-        batch["query"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True) for r in query_tensors]
-        batch["response"] = [tokenizer.decode(r.squeeze(), skip_special_tokens=True) for r in response_tensors]
-
+        batch["query"] = [tokenizer.decode(q, skip_special_tokens=True) for q in query_tensors]
+        batch["response"] = [tokenizer.decode(r, skip_special_tokens=True) for r in response_tensors]
+        batch["utterance"] = [tokenizer.decode(torch.cat((q, r)), skip_special_tokens=True) for q, r in
+                              zip(query_tensors, response_tensors)]
         return batch, response_tensors, query_tensors
 
     ppo_trainer.best_val_loss = math.inf
@@ -790,10 +796,10 @@ def main():
 
             use_queries = config.query_max_length > 0
             batch, response_tensors, query_tensors = generate(batch, query_length_sampler, use_queries)
-            utterances = [(q + r).strip() for q, r in zip(batch["query"], batch["response"])]
             utterance_lengths = [len(resp) - 1 for resp in response_tensors]
+            utts_contain_eos = [tokenizer.eos_token_id in resp for resp in response_tensors]
             rewards = compute_rewards(
-                utterances, utterance_lengths, value_model, value_model_tokenizer,
+                batch["utterance"], utterance_lengths, utts_contain_eos, value_model, value_model_tokenizer,
                 config.output_min_length, config.output_max_length, config.score_clip, config.length_reward_coef
             )
 

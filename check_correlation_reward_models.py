@@ -54,12 +54,17 @@ def eval(args):
         for r, reward_model_path in enumerate(args.reward_model_paths):
             utterances = batch["utts_decoded"]
             utt_lengths = [(utt != torch.tensor(tokenizer.pad_token_id)).sum() - 1 for utt in batch["utts"]]
+            utts_contain_eos = [tokenizer.eos_token_id in resp for resp in batch["utts"]]
+
             utterances = [utt for utt, utt_len in zip(utterances, utt_lengths) if utt_len > DEFAULT_MIN_GENERATION_LEN]
             utt_lengths = [utt_len for utt_len in utt_lengths if utt_len > DEFAULT_MIN_GENERATION_LEN]
+            utts_contain_eos = [contains_eos for contains_eos, utt_len in zip(utts_contain_eos, utt_lengths) if
+                                utt_len > DEFAULT_MIN_GENERATION_LEN]
 
             rewards = compute_rewards(
-                utterances, utt_lengths, reward_models[reward_model_path], reward_model_tokenizers[reward_model_path],
-                DEFAULT_MIN_GENERATION_LEN, DEFAULT_MAX_GENERATION_LEN, score_clip=None, length_reward_coef=None
+                utterances, utt_lengths, utts_contain_eos, reward_models[reward_model_path],
+                reward_model_tokenizers[reward_model_path], DEFAULT_MIN_GENERATION_LEN, DEFAULT_MAX_GENERATION_LEN,
+                score_clip=None, length_reward_coef=None
             )
             rewards = torch.stack(rewards).cpu().numpy()
             all_scores[reward_model_path].extend(rewards)
