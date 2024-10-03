@@ -56,10 +56,9 @@ def eval(args):
             utt_lengths = [(utt != torch.tensor(tokenizer.pad_token_id)).sum() - 1 for utt in batch["utts"]]
             utts_contain_eos = [tokenizer.eos_token_id in resp for resp in batch["utts"]]
 
-            utterances = [utt for utt, utt_len in zip(utterances, utt_lengths) if utt_len > DEFAULT_MIN_GENERATION_LEN]
-            utt_lengths = [utt_len for utt_len in utt_lengths if utt_len > DEFAULT_MIN_GENERATION_LEN]
-            utts_contain_eos = [contains_eos for contains_eos, utt_len in zip(utts_contain_eos, utt_lengths) if
-                                utt_len > DEFAULT_MIN_GENERATION_LEN]
+            utterances = [utt for utt, utt_len, contains_eos in zip(utterances, utt_lengths, utts_contain_eos) if contains_eos and (utt_len > DEFAULT_MIN_GENERATION_LEN)]
+            utt_lengths = [utt_len for utt_len, contains_eos in zip(utt_lengths, utts_contain_eos) if contains_eos and (utt_len > DEFAULT_MIN_GENERATION_LEN)]
+            utts_contain_eos = [contains_eos for contains_eos, utt_len in zip(utts_contain_eos, utt_lengths) if contains_eos and (utt_len > DEFAULT_MIN_GENERATION_LEN)]
 
             rewards = compute_rewards(
                 utterances, utt_lengths, utts_contain_eos, reward_models[reward_model_path],
