@@ -27,27 +27,32 @@ def compute_scores_childes_grammaticality(utterances, value_model, value_model_t
     scores = scores - 1
     return scores.cpu().numpy()
 
+
 def compute_scores_gec(utterances, gec_model, gec_model_tokenizer, max_length=128, num_beams=5):
     utterances_gec = ['gec: ' + u for u in utterances]
-    tokenized_sentences = gec_model_tokenizer(utterances_gec, max_length=max_length, truncation=True, padding='max_length',
-                                   return_tensors='pt').to(device)
+    tokenized_sentences = gec_model_tokenizer(utterances_gec, max_length=max_length, truncation=True,
+                                              padding='max_length',
+                                              return_tensors='pt').to(device)
     with torch.no_grad():
         output = gec_model.generate(
-                input_ids=tokenized_sentences.input_ids,
-                attention_mask=tokenized_sentences.attention_mask,
-                max_length=max_length,
-                num_beams=num_beams,
-                early_stopping=True,
+            input_ids=tokenized_sentences.input_ids,
+            attention_mask=tokenized_sentences.attention_mask,
+            max_length=max_length,
+            num_beams=num_beams,
+            early_stopping=True,
         )
         corrected_sentences = gec_model_tokenizer.batch_decode(
             output,
             skip_special_tokens=True,
             clean_up_tokenization_spaces=True
         )
-    scores = np.array([utt.lower() == utt_corrected.lower() for utt, utt_corrected in zip(utterances, corrected_sentences)]).astype(int)
+    scores = np.array([utt.lower().replace(",", "") == utt_corrected.lower().replace(",", "") for utt, utt_corrected in
+                       zip(utterances, corrected_sentences)]).astype(int)
     return scores
 
-def compute_scores(batch, childes_grammar_model, childes_grammar_model_tokenizer, gec_model, gec_model_tokenizer, tokenizer):
+
+def compute_scores(batch, childes_grammar_model, childes_grammar_model_tokenizer, gec_model, gec_model_tokenizer,
+                   tokenizer):
     utterances = batch["utts_decoded"]
     # print(f"computing scores for {len(utterances)} utterances")
     utt_lengths = [(utt != torch.tensor(tokenizer.pad_token_id)).sum() - 1 for utt in batch["utts"]]
@@ -62,7 +67,8 @@ def compute_scores(batch, childes_grammar_model, childes_grammar_model_tokenizer
         return [], []
 
     scores_gec = compute_scores_gec(utterances, gec_model, gec_model_tokenizer)
-    scores_childes_grammar = compute_scores_childes_grammaticality(utterances, childes_grammar_model, childes_grammar_model_tokenizer)
+    scores_childes_grammar = compute_scores_childes_grammaticality(utterances, childes_grammar_model,
+                                                                   childes_grammar_model_tokenizer)
 
     return scores_childes_grammar, scores_gec, utterances
 
@@ -72,7 +78,8 @@ def eval_generations(args):
     childes_grammar_model_tokenizer = AutoTokenizer.from_pretrained(hparams["model_name_or_path"], use_fast=True)
 
     eval_model_checkpoints = list(glob.glob(os.path.join(args.eval_model_path, "checkpoints", "epoch*.ckpt")))
-    assert len(eval_model_checkpoints) == 1, f"No or multiple checkpoints found in dir {args.eval_model_path}: {eval_model_checkpoints}"
+    assert len(
+        eval_model_checkpoints) == 1, f"No or multiple checkpoints found in dir {args.eval_model_path}: {eval_model_checkpoints}"
     eval_model_checkpoint = eval_model_checkpoints[0]
     print(f"Model checkpoint: {eval_model_checkpoint}")
     childes_grammar_model = CHILDESGrammarModel.load_from_checkpoint(eval_model_checkpoint).to(device)
@@ -126,15 +133,19 @@ def eval_generations(args):
         sample_df = None
         for i in range(args.num_batches):
             batch = generate(model, tokenizer, args.batch_size, args.output_max_length)
-            scores, scores_gec, utterances = compute_scores(batch, childes_grammar_model, childes_grammar_model_tokenizer, gec_model, gec_model_tokenizer, tokenizer)
+            scores, scores_gec, utterances = compute_scores(batch, childes_grammar_model,
+                                                            childes_grammar_model_tokenizer, gec_model,
+                                                            gec_model_tokenizer, tokenizer)
             all_scores.extend(scores)
             all_scores_gec.extend(scores_gec)
             if i == 0:
-                sample_df = pd.DataFrame.from_dict({"utterances": utterances, "scores": scores, "scores_gec": scores_gec})
+                sample_df = pd.DataFrame.from_dict(
+                    {"utterances": utterances, "scores": scores, "scores_gec": scores_gec})
         print("\n\n")
         print(sample_df.sort_values("scores"))
 
-        print(f"Score for {model_path} (avg over {len(all_scores)} samples): {np.mean(all_scores):.3f} | scores_gec: {np.mean(all_scores_gec):.3f}")
+        print(
+            f"Score for {model_path} (avg over {len(all_scores)} samples): {np.mean(all_scores):.3f} | scores_gec: {np.mean(all_scores_gec):.3f}")
         results.append({"model": model_path, "scores": np.mean(all_scores), "scores_gec": np.mean(all_scores_gec)})
 
     results = pd.DataFrame(results)
