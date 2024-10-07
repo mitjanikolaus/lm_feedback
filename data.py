@@ -304,7 +304,7 @@ def load_data(data_path):
 
 
 class ChildesDataModule(LightningDataModule):
-    def __init__(self, lm_data_path=CHILDES_LM_DATA_FILE, additional_train=None, fb=False, fb_data_path=CHILDES_RL_DATA_FILE, vocab_size=5000,
+    def __init__(self, lm_data_path=CHILDES_LM_DATA_FILE, additional_train=None, vocab_size=5000,
                  max_len=DEFAULT_MAX_LEN, batch_size=256, num_workers=4, causal=True, max_num_words=-1,
                  tokenizer_type="word_level"):
         super().__init__()
@@ -312,7 +312,6 @@ class ChildesDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.max_len = max_len
         self.num_workers = num_workers
-        self.fb = fb
         self.tokenizer_type = tokenizer_type
         self.additional_train = additional_train
 
@@ -406,42 +405,19 @@ class ChildesDataModule(LightningDataModule):
         self.dataset_train = ChildesLMDataset(data_train, tokenizer=self.tokenizer, tokenizer_type=tokenizer_type,
                                               max_len=max_len)
 
-        if self.fb:
-            print("Loading FB data.. ", end="")
-            data_fb = pd.read_csv(fb_data_path)
-            data_fb["reward"] = data_fb.apply(compute_reward_value, axis=1)
-            data_fb = data_fb[["utt_transcript_clean", "reward"]]
-
-            data_fb_train, data_fb_dev = train_test_split(data_fb, test_size=DEV_SET_SIZE, shuffle=True,
-                                                          random_state=SPLIT_RANDOM_STATE)
-            print("Done.")
-            self.dataset_fb_train = FeedbackDataset(data_fb_train, self.tokenizer, max_len)
-            self.dataset_fb_dev = FeedbackDataset(data_fb_dev, self.tokenizer, max_len)
-
         self.collate_fn = DataCollatorForLanguageModeling(
             tokenizer=self.tokenizer, mlm=not causal, mlm_probability=0.15 if not causal else None
         )
-        self.collate_fn_fb = DataCollatorWithPadding(tokenizer=self.tokenizer)
 
     def train_dataloader(self):
         lm_dataloader = DataLoader(self.dataset_train, batch_size=self.batch_size, num_workers=self.num_workers,
                                    shuffle=True, collate_fn=self.collate_fn)
-        if self.fb:
-            fb_dataloader = DataLoader(self.dataset_fb_train, batch_size=self.batch_size, num_workers=self.num_workers,
-                                       shuffle=True, collate_fn=self.collate_fn_fb)
-            return {"lm": lm_dataloader, "fb": fb_dataloader}
-        else:
-            return lm_dataloader
+        return lm_dataloader
 
     def val_dataloader(self):
         lm_dataloader = DataLoader(self.dataset_dev, batch_size=self.batch_size,
                                    num_workers=self.num_workers, collate_fn=self.collate_fn)
-        if self.fb:
-            fb_dataloader = DataLoader(self.dataset_fb_dev, batch_size=self.batch_size, num_workers=self.num_workers,
-                                       collate_fn=self.collate_fn_fb)
-            return {"lm": lm_dataloader, "fb": fb_dataloader}
-        else:
-            return lm_dataloader
+        return lm_dataloader
 
 
 class ChildesLMDataset(Dataset):
@@ -461,8 +437,7 @@ class ChildesLMDataset(Dataset):
 
 
 class BabyLMDataModule(LightningDataModule):
-    def __init__(self, training_track=TRAINING_TRACK_STRICT_SMALL, fb=False, fb_data_path=CHILDES_RL_DATA_FILE,
-                 vocab_size=10000,
+    def __init__(self, training_track=TRAINING_TRACK_STRICT_SMALL, vocab_size=10000,
                  max_len=DEFAULT_MAX_LEN, batch_size=128, num_workers=4, subset=None, causal=True):
         super().__init__()
         if subset is None:
@@ -474,7 +449,6 @@ class BabyLMDataModule(LightningDataModule):
         self.batch_size = batch_size
         self.max_len = max_len
         self.num_workers = num_workers
-        self.fb = fb
 
         subset_name = ""
         if data_file_names != DATA_NAMES:
@@ -521,23 +495,14 @@ class BabyLMDataModule(LightningDataModule):
                                            data_file_names=data_file_names,
                                            split="train")
 
-        if self.fb:
-            self.dataset_fb_train = FeedbackDataset(fb_data_path, self.tokenizer, max_len)
-
         self.collate_fn = DataCollatorForLanguageModeling(
             tokenizer=self.tokenizer, mlm=not causal, mlm_probability=0.15 if not causal else None
         )
-        self.collate_fn_fb = DataCollatorWithPadding(tokenizer=self.tokenizer)
 
     def train_dataloader(self):
         lm_dataloader = DataLoader(self.dataset_train, batch_size=self.batch_size, num_workers=self.num_workers,
                                    shuffle=True, collate_fn=self.collate_fn)
-        if self.fb:
-            fb_dataloader = DataLoader(self.dataset_fb_train, batch_size=self.batch_size, num_workers=self.num_workers,
-                                       shuffle=True, collate_fn=self.collate_fn_fb)
-            return {"lm": lm_dataloader, "fb": fb_dataloader}
-        else:
-            return lm_dataloader
+        return lm_dataloader
 
     def val_dataloader(self):
         validation_dataloader = DataLoader(self.dataset_dev, batch_size=self.batch_size,

@@ -1,7 +1,6 @@
 import math
 import os
 import warnings
-from typing import List
 
 import numpy as np
 import torch
@@ -125,53 +124,15 @@ class BabyLMModel(LightningModule):
 
         return out["loss"]
 
-    def forward_step_fb(self, batch):
-        if self.model_family == "causal":
-            out_fb = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask)
-        else:
-            out_fb = self.model(input_ids=batch.input_ids, attention_mask=batch.attention_mask,
-                                token_type_ids=batch.token_type_ids)
-
-        logits = out_fb["logits"]
-        target_logits = [logit[range(logit.shape[0]), input] for logit, input in zip(logits, batch.input_ids)]
-        target_logits = torch.stack(target_logits)
-        effective_log_prob = target_logits.sum(dim=1) / batch["length"]
-
-        policy_loss = -(batch["reward"] * effective_log_prob).mean()
-        return policy_loss
-
     def training_step(self, batch, batch_idx):
-        if self.trainer.datamodule.fb:
-            batch, batch_fb = batch["lm"], batch["fb"]
-            lm_loss = self.forward_step_lm(batch)
-            policy_loss = self.forward_step_fb(batch_fb)
-
-            # entropy_loss = effective_entropy.mean() * args.entropy_coeff
-
-            loss_lm = (1 - self.hparams.rl_loss_weight) * lm_loss
-            loss_rl = self.hparams.rl_loss_weight * policy_loss
-
-            self.log(f"train_loss_lm", loss_lm)
-            self.log(f"train_loss_rl", loss_rl)
-            self.log(f"train_loss_lm_raw", lm_loss, prog_bar=True)
-            self.log(f"train_loss_rl_raw", policy_loss, prog_bar=True)
-
-            loss = loss_lm + loss_rl
-        else:
-            loss = self.forward_step_lm(batch)
-
+        loss = self.forward_step_lm(batch)
         self.log(f"train_loss", loss, prog_bar=True)
 
         return loss
 
-    def validation_step(self, batch, batch_idx, dataloader_idx=0):
-        if dataloader_idx == 0:
-            loss = self.forward_step_lm(batch)
-            self.log(f"val_loss", loss, prog_bar=True, sync_dist=True, add_dataloader_idx=False)
-
-        elif dataloader_idx == 1:
-            policy_loss = self.forward_step_fb(batch)
-            self.log(f"val_loss_rl_raw", policy_loss, prog_bar=True, add_dataloader_idx=False)
+    def validation_step(self, batch, batch_idx):
+        loss = self.forward_step_lm(batch)
+        self.log(f"val_loss", loss, prog_bar=True, sync_dist=True, add_dataloader_idx=False)
 
     def generate_sample_sentences(self):
         tokenizer = self.trainer.datamodule.tokenizer
