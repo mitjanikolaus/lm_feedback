@@ -634,6 +634,10 @@ class CfPPOConfig(PPOConfig):
     generation_top_k: int = 0
     generation_temperature: float = 1.0
 
+    generation_do_sample: bool = True
+    generation_num_beams: int = 1
+    generation_num_beam_groups: int = 1
+
     entropy_reg_coef: float = 0.0
     length_reward_coef: float = 0.0
     score_clip: float = None
@@ -775,9 +779,11 @@ def main():
             "top_k": config.generation_top_k,
             "top_p": config.generation_top_p,
             "temperature": config.generation_temperature,
-            "do_sample": True,
+            "do_sample": config.generation_do_sample,
             "pad_token_id": tokenizer.pad_token_id,
             "eos_token_id": tokenizer.eos_token_id,
+            "num_beams": config.generation_num_beams,
+            "num_beam_groups": config.generation_num_beam_groups,
         }
         if use_queries:
             caregiver_utts = batch["input_ids"]
