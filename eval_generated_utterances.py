@@ -78,7 +78,7 @@ def eval_generations(args):
     childes_grammar_model = CHILDESGrammarModel.load_from_checkpoint(eval_model_checkpoint).to(device)
     childes_grammar_model.eval()
 
-    gec_model = T5ForConditionalGeneration.from_pretrained("Unbabel/gec-t5_small")
+    gec_model = T5ForConditionalGeneration.from_pretrained("Unbabel/gec-t5_small").to(device)
     gec_model_tokenizer = T5Tokenizer.from_pretrained('t5-small')
 
     def generate(model, tokenizer, batch_size, output_max_length):
