@@ -37,6 +37,8 @@ CKPT_DIR = "ckpts_ppo"
 CKPT_DIR_BEST_VAL_LOSS = "best_val_loss"
 CKPT_DIR_BEST_ZORRO = "best_zorro"
 CKPT_DIR_BEST_BLIMP = "best_blimp"
+CKPT_DIR_BEST_REWARD = "best_reward"
+
 
 DEFAULT_MIN_GENERATION_LEN = 3
 DEFAULT_MAX_GENERATION_LEN = 20
@@ -57,6 +59,11 @@ class ChildesPPOTrainer(PPOTrainer):
     ):
         def collator(data):
             return dict((key, [d[key] for d in data]) for key in data[0])
+
+        self.best_val_loss = math.inf
+        self.best_zorro = 0
+        self.best_blimp = 0
+        self.best_reward = 0
 
         super(ChildesPPOTrainer, self).__init__(config, model, ref_model, tokenizer, dataset, optimizer, collator,
                                                 num_shared_layers, lr_scheduler, training_data_collator)
@@ -526,9 +533,16 @@ class ChildesPPOTrainer(PPOTrainer):
                 if isinstance(v, torch.Tensor) and v.dtype == torch.bfloat16:
                     logs[k] = v.float()
 
-            logs["env/reward_mean"] = torch.mean(rewards).cpu().numpy().item()
+            mean_reward = torch.mean(rewards).cpu().numpy().item()
+            logs["env/reward_mean"] = mean_reward
             logs["env/reward_std"] = torch.std(rewards).cpu().numpy().item()
             logs["env/reward_dist"] = rewards.cpu().numpy()
+
+            if mean_reward > self.best_reward:
+                self.best_reward = mean_reward
+                print(f"New best mean reward: {mean_reward:.2f}, saving checkpoint")
+                ckpt_dir = os.path.join(CKPT_DIR, self.config.exp_name, CKPT_DIR_BEST_REWARD)
+                save_checkpoint(ckpt_dir, self.model, self.tokenizer)
 
             if self.config.log_with == "wandb":
                 wandb.log(logs, commit=True, step=self.current_step)
@@ -778,10 +792,6 @@ def main():
         batch["utterance"] = [tokenizer.decode(torch.cat((q, r)), skip_special_tokens=True) for q, r in
                               zip(query_tensors, response_tensors)]
         return batch, response_tensors, query_tensors
-
-    ppo_trainer.best_val_loss = math.inf
-    ppo_trainer.best_zorro = 0
-    ppo_trainer.best_blimp = 0
 
     query_length_sampler = LengthSampler(config.query_min_length, config.query_max_length + 1)
     step = 0

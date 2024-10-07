@@ -102,7 +102,8 @@ def eval_generations(args):
         print(f"Score for {model_path} (avg over {len(all_scores)} samples): {np.mean(all_scores):.3f}")
         scores_dict[model_path] = np.mean(all_scores)
 
-    print(scores_dict)
+    for key, val in scores_dict.items():
+        print(f"{key}:\t\t{val:.4f}")
 
 
 def get_args():
