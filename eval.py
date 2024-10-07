@@ -1,17 +1,39 @@
 import argparse
 import glob
 import os
+import warnings
 
 import numpy as np
 import pandas as pd
 import torch
 import yaml
 
+from lm_eval import evaluator
 from grammaticality_annotation.fine_tune_grammaticality_nn import CHILDESGrammarModel
+from train_lm import DEFAULT_EVAL_METRICS
 from train_ppo import DEFAULT_MAX_GENERATION_LEN, DEFAULT_MIN_GENERATION_LEN
 from transformers import AutoTokenizer, AutoModelForCausalLM, T5ForConditionalGeneration, T5Tokenizer
 
+from utilities import parse_babylm_metrics_results
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+def eval_babylm_metrics(ckpt_dir, eval_batch_size=1024):
+    model_args = f"pretrained={ckpt_dir},add_bos_token=True"
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        out = evaluator.simple_evaluate(
+            model="hf",
+            model_args=model_args,
+            tasks=DEFAULT_EVAL_METRICS,
+            batch_size=eval_batch_size,
+            device=f"cuda:{device}",
+            cache_requests=True,
+        )
+
+    results = parse_babylm_metrics_results(out)
+    return results
 
 
 def compute_scores_childes_grammaticality(utterances, value_model, value_model_tokenizer):
@@ -54,14 +76,11 @@ def compute_scores_gec(utterances, gec_model, gec_model_tokenizer, max_length=12
 def compute_scores(batch, childes_grammar_model, childes_grammar_model_tokenizer, gec_model, gec_model_tokenizer,
                    tokenizer):
     utterances = batch["utts_decoded"]
-    # print(f"computing scores for {len(utterances)} utterances")
     utt_lengths = [(utt != torch.tensor(tokenizer.pad_token_id)).sum() - 1 for utt in batch["utts"]]
     utterances = [utt for utt, utt_len in zip(utterances, utt_lengths) if utt_len > DEFAULT_MIN_GENERATION_LEN]
-    # print(f"utterances with sufficient lengths: {len(utterances)}")
 
     utts_finished = [tokenizer.eos_token_id in utt for utt in batch["utts"]]
     utterances = [utt for utt, utt_finished in zip(utterances, utts_finished) if utt_finished]
-    # print(f"utterances with sufficient lengths that finished: {len(utterances)}")
 
     if len(utterances) == 0:
         return [], []
@@ -73,7 +92,7 @@ def compute_scores(batch, childes_grammar_model, childes_grammar_model_tokenizer
     return scores_childes_grammar, scores_gec, utterances
 
 
-def eval_generations(args):
+def eval_models(args):
     hparams = yaml.safe_load(open(os.path.join(args.eval_model_path, "hparams.yaml")))
     childes_grammar_model_tokenizer = AutoTokenizer.from_pretrained(hparams["model_name_or_path"], use_fast=True)
 
@@ -111,8 +130,10 @@ def eval_generations(args):
     pd.set_option('display.precision', 3)
     pd.set_option("expand_frame_repr", False)
 
-    results = []
+    all_results = []
     for model_path in args.model_paths:
+        results = eval_babylm_metrics(model_path)
+
         model = AutoModelForCausalLM.from_pretrained(model_path).to(device)
         tokenizer = AutoTokenizer.from_pretrained(model_path)
         model.eval()
@@ -128,28 +149,33 @@ def eval_generations(args):
         # print("Sanity check for eval model: ")
         # print(df.sort_values("scores"))
 
-        all_scores = []
+        all_scores_childes_grammar = []
         all_scores_gec = []
         sample_df = None
         for i in range(args.num_batches):
             batch = generate(model, tokenizer, args.batch_size, args.output_max_length)
-            scores, scores_gec, utterances = compute_scores(batch, childes_grammar_model,
+            scores_childes_grammar, scores_gec, utterances = compute_scores(batch, childes_grammar_model,
                                                             childes_grammar_model_tokenizer, gec_model,
                                                             gec_model_tokenizer, tokenizer)
-            all_scores.extend(scores)
+            all_scores_childes_grammar.extend(scores_childes_grammar)
             all_scores_gec.extend(scores_gec)
             if i == 0:
                 sample_df = pd.DataFrame.from_dict(
-                    {"utterances": utterances, "scores": scores, "scores_gec": scores_gec})
+                    {"utterances": utterances, "scores_childes_grammaticality": scores_childes_grammar, "scores_gec": scores_gec})
         print("\n\n")
-        print(sample_df.sort_values("scores"))
+        print(sample_df.sort_values("scores_childes_grammaticality"))
 
         print(
-            f"Score for {model_path} (avg over {len(all_scores)} samples): {np.mean(all_scores):.3f} | scores_gec: {np.mean(all_scores_gec):.3f}")
-        results.append({"model": model_path, "scores": np.mean(all_scores), "scores_gec": np.mean(all_scores_gec)})
+            f"Childes grammaticality scores for {model_path} (avg over {len(all_scores_childes_grammar)} samples): {np.mean(all_scores_childes_grammar):.3f} | "
+            f"scores_gec: {np.mean(all_scores_gec):.3f}"
+        )
+        results.update({"model": model_path, "scores_childes_grammar": np.mean(all_scores_childes_grammar), "scores_gec": np.mean(all_scores_gec)})
+        all_results.append(results)
 
-    results = pd.DataFrame(results)
-    print(results)
+    all_results = pd.DataFrame(all_results)
+    all_results.set_index("model", inplace=True)
+    all_results.to_csv("results.csv", index=True, index_label="model")
+    print(all_results[["zorro_filtered_childes", "blimp_filtered_childes", "scores_childes_grammar", "scores_gec"]])
 
 
 def get_args():
@@ -167,4 +193,4 @@ def get_args():
 
 if __name__ == "__main__":
     args = get_args()
-    eval_generations(args)
+    eval_models(args)
