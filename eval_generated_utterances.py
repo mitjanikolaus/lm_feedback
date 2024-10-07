@@ -99,9 +99,10 @@ def eval_generations(args):
         return batch
 
     pd.set_option('display.max_rows', 100)
-    pd.set_option('display.width', 300)
-    pd.set_option('display.max_colwidth', 200)
+    pd.set_option('display.width', 2000)
+    pd.set_option('display.max_colwidth', None)
     pd.set_option('display.precision', 3)
+    pd.set_option("expand_frame_repr", False)
 
     results = []
     for model_path in args.model_paths:
