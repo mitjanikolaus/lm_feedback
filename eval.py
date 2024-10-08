@@ -131,7 +131,13 @@ def eval_models(args):
     pd.set_option("expand_frame_repr", False)
 
     all_results = []
+    skipped = []
     for model_path in args.model_paths:
+        if not os.path.isdir(model_path):
+            print("skipping non existing ckpt path: ", model_path)
+            skipped.append(model_path)
+            continue
+
         results = eval_babylm_metrics(model_path)
 
         model = AutoModelForCausalLM.from_pretrained(model_path).to(device)
@@ -176,6 +182,8 @@ def eval_models(args):
     all_results.set_index("model", inplace=True)
     all_results.to_csv("results.csv", index=True, index_label="model")
     print(all_results[["zorro_filtered_childes", "blimp_filtered_childes", "scores_childes_grammar", "scores_gec"]])
+
+    print(f"\n\nskipped: {skipped}")
 
 
 def get_args():
