@@ -802,12 +802,13 @@ def main():
         print(f"\nEPOCH: {epoch}")
         epoch += 1
         for batch in tqdm(ppo_trainer.dataloader):
-            if (config.eval_freq != -1) and (step % config.eval_freq == 0):
-                eval(model, tokenizer, config, ppo_trainer, lm_val_dataloader, epoch)
-
             if patience < 1:
                 print(f"\n\nNo reward improvement for {PATIENCE_STEPS} steps, stopping training.")
+                eval(model, tokenizer, config, ppo_trainer, lm_val_dataloader, epoch)
                 return
+
+            if (config.eval_freq != -1) and (step % config.eval_freq == 0):
+                eval(model, tokenizer, config, ppo_trainer, lm_val_dataloader, epoch)
 
             use_queries = config.query_max_length > 0
             batch, response_tensors, query_tensors = generate(batch, query_length_sampler, use_queries)
