@@ -50,7 +50,7 @@ def compute_scores_childes_grammaticality(utterances, value_model, value_model_t
     return scores.cpu().numpy()
 
 
-def compute_scores_gec(utterances, gec_model, gec_model_tokenizer, max_length=128, num_beams=5):
+def compute_scores_gec(utterances, gec_model, gec_model_tokenizer, max_length=DEFAULT_MAX_GENERATION_LEN*2, num_beams=5):
     utterances_gec = ['gec: ' + u for u in utterances]
     tokenized_sentences = gec_model_tokenizer(utterances_gec, max_length=max_length, truncation=True,
                                               padding='max_length',
