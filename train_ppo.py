@@ -646,7 +646,7 @@ class CfPPOConfig(PPOConfig):
 
     eval_metrics: List[str] = field(default_factory=lambda: DEFAULT_EVAL_METRICS)
 
-    eval_freq: int = 100
+    eval_freq: int = 1000
     log_freq: int = 20
 
     log_with: str = "wandb"
