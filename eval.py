@@ -167,9 +167,9 @@ def eval_models(args):
             all_scores_gec.extend(scores_gec)
             if i == 0:
                 sample_df = pd.DataFrame.from_dict(
-                    {"utterances": utterances, "scores_childes_grammaticality": scores_childes_grammar, "scores_gec": scores_gec})
+                    {"utterance": utterances, "score_childes_grammaticality": scores_childes_grammar, "score_gec": scores_gec})
         print("\n\n")
-        print(sample_df.sort_values("scores_childes_grammaticality"))
+        print(sample_df.sort_values("score_childes_grammaticality").to_latex(index=False))
 
         print(
             f"Childes grammaticality scores for {model_path} (avg over {len(all_scores_childes_grammar)} samples): {np.mean(all_scores_childes_grammar):.3f} | "
