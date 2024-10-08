@@ -823,7 +823,7 @@ def main():
             if mean_reward > ppo_trainer.best_reward:
                 ppo_trainer.best_reward = mean_reward
                 patience = PATIENCE_STEPS
-                print(f"New best mean reward: {mean_reward:.2f}, saving checkpoint")
+                print(f"New best mean reward: {mean_reward:.4f}, saving checkpoint")
                 ckpt_dir = os.path.join(CKPT_DIR, config.exp_name, CKPT_DIR_BEST_REWARD)
                 save_checkpoint(ckpt_dir, model, tokenizer)
             else:
