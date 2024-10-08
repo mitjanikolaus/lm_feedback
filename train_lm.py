@@ -28,7 +28,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class BabyLMModel(LightningModule):
-    def __init__(self, initial_lr=1e-4, rl_loss_weight=0, model_name=MODEL_GPT2, num_hidden_layers=2,
+    def __init__(self, initial_lr=1e-4, model_name=MODEL_GPT2, num_hidden_layers=2,
                  eval_batch_size=1024, hidden_size=512, num_attention_heads=8,
                  eval_metrics=None):
         super().__init__()
