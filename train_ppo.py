@@ -39,6 +39,7 @@ CKPT_DIR_BEST_ZORRO = "best_zorro"
 CKPT_DIR_BEST_BLIMP = "best_blimp"
 CKPT_DIR_BEST_REWARD = "best_reward"
 
+PATIENCE_STEPS = 100
 
 DEFAULT_MIN_GENERATION_LEN = 3
 DEFAULT_MAX_GENERATION_LEN = 20
@@ -538,12 +539,6 @@ class ChildesPPOTrainer(PPOTrainer):
             logs["env/reward_std"] = torch.std(rewards).cpu().numpy().item()
             logs["env/reward_dist"] = rewards.cpu().numpy()
 
-            if mean_reward > self.best_reward:
-                self.best_reward = mean_reward
-                print(f"New best mean reward: {mean_reward:.2f}, saving checkpoint")
-                ckpt_dir = os.path.join(CKPT_DIR, self.config.exp_name, CKPT_DIR_BEST_REWARD)
-                save_checkpoint(ckpt_dir, self.model, self.tokenizer)
-
             if self.config.log_with == "wandb":
                 wandb.log(logs, commit=True, step=self.current_step)
             else:
@@ -802,12 +797,17 @@ def main():
     query_length_sampler = LengthSampler(config.query_min_length, config.query_max_length + 1)
     step = 0
     epoch = 0
+    patience = PATIENCE_STEPS
     while step <= config.steps:
         print(f"\nEPOCH: {epoch}")
         epoch += 1
         for batch in tqdm(ppo_trainer.dataloader):
             if (config.eval_freq != -1) and (step % config.eval_freq == 0):
                 eval(model, tokenizer, config, ppo_trainer, lm_val_dataloader, epoch)
+
+            if patience < 1:
+                print(f"\n\nNo reward improvement for {PATIENCE_STEPS} steps, stopping training.")
+                return
 
             use_queries = config.query_max_length > 0
             batch, response_tensors, query_tensors = generate(batch, query_length_sampler, use_queries)
@@ -817,6 +817,16 @@ def main():
                 batch["utterance"], utterance_lengths, utts_contain_eos, value_model, value_model_tokenizer,
                 config.output_min_length, config.output_max_length, config.score_clip, config.length_reward_coef
             )
+
+            mean_reward = np.mean(rewards)
+            if mean_reward > ppo_trainer.best_reward:
+                ppo_trainer.best_reward = mean_reward
+                patience = PATIENCE_STEPS
+                print(f"New best mean reward: {mean_reward:.2f}, saving checkpoint")
+                ckpt_dir = os.path.join(CKPT_DIR, config.exp_name, CKPT_DIR_BEST_REWARD)
+                save_checkpoint(ckpt_dir, model, tokenizer)
+            else:
+                patience -= 1
 
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards, lm_inputs=batch["input_ids"],
                                      lm_loss_coef=config.lm_loss_coef)
