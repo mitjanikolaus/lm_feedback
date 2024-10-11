@@ -23,7 +23,8 @@ from eval import load_childes_grammar_model, load_gec_model, eval_grammaticality
 from train_lm import DEFAULT_EVAL_METRICS
 from utilities import CHILDES_LM_TRAIN_DATA_FILE, parse_babylm_metrics_results, CHILDES_LM_VAL_DATA_FILE
 
-from transformers import AutoTokenizer, AutoModelForSequenceClassification, HfArgumentParser, PreTrainedTokenizerBase
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, HfArgumentParser, PreTrainedTokenizerBase, \
+    AutoModelForCausalLM
 from datasets import Dataset
 
 from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead, PreTrainedModelWrapper
@@ -575,11 +576,8 @@ def build_policy_trainer_datasets(data_path, lm_val_data_path, tokenizer, query_
     return ds_train, ds_val
 
 
-def eval_babylm(model, tokenizer, ppo_trainer, device, config, epoch, eval_batch_size=1024):
+def eval_babylm(model, tokenizer, ckpt_dir, ppo_trainer, device, config, eval_batch_size=1024):
     print("Evaluating babylm metrics")
-    ckpt_dir = os.path.join(CKPT_DIR, config.exp_name, f"epoch_{epoch}")
-    save_checkpoint(ckpt_dir, model, tokenizer)
-
     model_args = f"pretrained={ckpt_dir},add_bos_token=True"
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
@@ -689,8 +687,9 @@ def save_checkpoint(dir, model, tokenizer):
     tokenizer.save_pretrained(dir)
 
 
-def eval(model, tokenizer, config, trainer, lm_val_dataloader, epoch):
+def eval(model, tokenizer, config, trainer, ckpt_dir):
     # eval_lm_loss(model, tokenizer, config, trainer, lm_val_dataloader)
+
     if config.grammar_eval_model_path is not None:
         childes_grammar_model, childes_grammar_model_tokenizer = load_childes_grammar_model(
             config.grammar_eval_model_path)
@@ -706,8 +705,7 @@ def eval(model, tokenizer, config, trainer, lm_val_dataloader, epoch):
         else:
             trainer.accelerator.log(results, step=trainer.current_step, log_kwargs={"commit": False})
 
-    eval_babylm(model, tokenizer, ppo_trainer=trainer, device=trainer.accelerator.device.index, config=config,
-                epoch=epoch)
+    eval_babylm(model, tokenizer, ckpt_dir=ckpt_dir, ppo_trainer=trainer, device=trainer.accelerator.device.index, config=config)
 
 
 def compute_rewards(utterances, utt_lengths, utts_contain_eos, value_model, value_model_tokenizer, output_min_length,
@@ -741,6 +739,15 @@ def compute_rewards(utterances, utt_lengths, utts_contain_eos, value_model, valu
                    zip(rewards, utt_lengths)]
 
     return rewards
+
+
+def final_eval(config, trainer):
+    model_path = os.path.join(CKPT_DIR, config.exp_name, CKPT_DIR_BEST_REWARD)
+    print(f"Loading best model from {model_path}")
+    model = AutoModelForCausalLM.from_pretrained(model_path).to(device)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    model.eval()
+    eval(model, tokenizer, config, trainer, ckpt_dir=model_path)
 
 
 def main():
@@ -822,11 +829,13 @@ def main():
         for batch in tqdm(ppo_trainer.dataloader):
             if patience < 1:
                 print(f"\n\nNo reward improvement for {PATIENCE_STEPS} steps, stopping training.")
-                eval(model, tokenizer, config, ppo_trainer, lm_val_dataloader, epoch)
+                final_eval(config, ppo_trainer)
                 return
 
             if (config.eval_freq != -1) and (step % config.eval_freq == 0):
-                eval(model, tokenizer, config, ppo_trainer, lm_val_dataloader, epoch)
+                ckpt_dir = os.path.join(CKPT_DIR, config.exp_name, f"epoch_{epoch}")
+                save_checkpoint(ckpt_dir, model, tokenizer)
+                eval(model, tokenizer, config, ppo_trainer, ckpt_dir)
 
             use_queries = config.query_max_length > 0
             batch, response_tensors, query_tensors = generate(batch, query_length_sampler, use_queries)
@@ -861,7 +870,7 @@ def main():
                 print("reached max steps, stopping training.")
                 break
 
-        eval(model, tokenizer, config, ppo_trainer, lm_val_dataloader, epoch)
+        final_eval(config, ppo_trainer)
 
 
 if __name__ == "__main__":
