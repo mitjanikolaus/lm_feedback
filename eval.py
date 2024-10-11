@@ -169,9 +169,9 @@ def load_childes_grammar_model(eval_model_path):
     hparams = yaml.safe_load(open(os.path.join(eval_model_path, "hparams.yaml")))
     childes_grammar_model_tokenizer = AutoTokenizer.from_pretrained(hparams["model_name_or_path"], use_fast=True)
 
-    eval_model_checkpoints = list(glob.glob(os.path.join(args.eval_model_path, "checkpoints", "epoch*.ckpt")))
+    eval_model_checkpoints = list(glob.glob(os.path.join(eval_model_path, "checkpoints", "epoch*.ckpt")))
     assert len(
-        eval_model_checkpoints) == 1, f"No or multiple checkpoints found in dir {args.eval_model_path}: {eval_model_checkpoints}"
+        eval_model_checkpoints) == 1, f"No or multiple checkpoints found in dir {eval_model_path}: {eval_model_checkpoints}"
     eval_model_checkpoint = eval_model_checkpoints[0]
     print(f"Model checkpoint: {eval_model_checkpoint}")
     childes_grammar_model = CHILDESGrammarModel.load_from_checkpoint(eval_model_checkpoint).to(device)
