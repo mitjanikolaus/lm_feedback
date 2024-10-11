@@ -561,6 +561,7 @@ def load_lm_data(data_path, tokenizer, query_max_length, utt_max_length, keep_ut
             del sample["utt"]
         return sample
 
+    ds = ds.map(tokenize, num_proc=10)
     ds = ds.filter(lambda x: len(x["input_ids"]) > query_max_length + 2)
 
     ds.set_format(type="torch")
