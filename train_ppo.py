@@ -19,6 +19,7 @@ from tqdm import tqdm
 import torch.nn.functional as F
 
 from data import DEFAULT_MAX_LEN
+from eval import load_childes_grammar_model, load_gec_model, eval_grammaticality_produced_utts
 from train_lm import DEFAULT_EVAL_METRICS
 from utilities import CHILDES_LM_TRAIN_DATA_FILE, parse_babylm_metrics_results, CHILDES_LM_VAL_DATA_FILE
 
@@ -28,6 +29,8 @@ from datasets import Dataset
 from trl import PPOTrainer, PPOConfig, AutoModelForCausalLMWithValueHead, PreTrainedModelWrapper
 from trl.core import LengthSampler, PPODecorators, entropy_from_logits, masked_mean, clip_by_value, masked_var, \
     flatten_dict, logprobs_from_logits, stack_dicts, WANDB_PADDING, stats_to_np, convert_to_scalar
+from utilities import DEFAULT_MAX_GENERATION_LEN, DEFAULT_MIN_GENERATION_LEN
+
 from lm_eval import evaluator
 
 tqdm.pandas()
@@ -39,10 +42,7 @@ CKPT_DIR_BEST_ZORRO = "best_zorro"
 CKPT_DIR_BEST_BLIMP = "best_blimp"
 CKPT_DIR_BEST_REWARD = "best_reward"
 
-PATIENCE_STEPS = 100
-
-DEFAULT_MIN_GENERATION_LEN = 3
-DEFAULT_MAX_GENERATION_LEN = 20
+PATIENCE_STEPS = 10
 
 
 class ChildesPPOTrainer(PPOTrainer):
@@ -64,7 +64,7 @@ class ChildesPPOTrainer(PPOTrainer):
         self.best_val_loss = math.inf
         self.best_zorro = 0
         self.best_blimp = 0
-        self.best_reward = 0
+        self.best_reward = -math.inf
 
         super(ChildesPPOTrainer, self).__init__(config, model, ref_model, tokenizer, dataset, optimizer, collator,
                                                 num_shared_layers, lr_scheduler, training_data_collator)
@@ -561,7 +561,6 @@ def load_lm_data(data_path, tokenizer, query_max_length, utt_max_length, keep_ut
             del sample["utt"]
         return sample
 
-    ds = ds.map(tokenize, num_proc=10)
     ds = ds.filter(lambda x: len(x["input_ids"]) > query_max_length + 2)
 
     ds.set_format(type="torch")
@@ -642,12 +641,14 @@ class CfPPOConfig(PPOConfig):
     query_min_length: int = 1
     query_max_length: int = 2
 
+    grammar_eval_model_path: str = None
+
     lm_val_batch_size: int = 512
 
     eval_metrics: List[str] = field(default_factory=lambda: DEFAULT_EVAL_METRICS)
 
     eval_freq: int = 1000
-    log_freq: int = 20
+    log_freq: int = 10
 
     log_with: str = "wandb"
 
@@ -673,7 +674,7 @@ def eval_lm_loss(model, tokenizer, config, trainer, lm_val_dataloader, max_batch
     if config.log_with == "wandb":
         wandb.log(results, commit=False, step=trainer.current_step)
     else:
-        trainer.accelerator.log(results, step=trainer.current_step, log_kwargs={"commit": True})
+        trainer.accelerator.log(results, step=trainer.current_step, log_kwargs={"commit": False})
 
     if val_loss < trainer.best_val_loss:
         trainer.best_val_loss = val_loss
@@ -688,7 +689,22 @@ def save_checkpoint(dir, model, tokenizer):
 
 
 def eval(model, tokenizer, config, trainer, lm_val_dataloader, epoch):
-    eval_lm_loss(model, tokenizer, config, trainer, lm_val_dataloader)
+    # eval_lm_loss(model, tokenizer, config, trainer, lm_val_dataloader)
+    if config.grammar_eval_model_path is not None:
+        childes_grammar_model, childes_grammar_model_tokenizer = load_childes_grammar_model(
+            config.grammar_eval_model_path)
+        gec_model, gec_model_tokenizer = load_gec_model()
+        model_path = os.path.join(CKPT_DIR, config.exp_name)
+        scores_childes_grammar, scores_gec = eval_grammaticality_produced_utts(model, tokenizer, childes_grammar_model,
+                                                                               childes_grammar_model_tokenizer,
+                                                                               gec_model,
+                                                                               gec_model_tokenizer, model_path)
+        results = {"grammaticality_childes": scores_childes_grammar, "grammaticality_gec": scores_gec}
+        if config.log_with == "wandb":
+            wandb.log(results, commit=False, step=trainer.current_step)
+        else:
+            trainer.accelerator.log(results, step=trainer.current_step, log_kwargs={"commit": False})
+
     eval_babylm(model, tokenizer, ppo_trainer=trainer, device=trainer.accelerator.device.index, config=config,
                 epoch=epoch)
 
@@ -798,6 +814,7 @@ def main():
     step = 0
     epoch = 0
     patience = PATIENCE_STEPS
+    mean_reward_aggregate = []
     while step <= config.steps:
         print(f"\nEPOCH: {epoch}")
         epoch += 1
@@ -819,15 +836,7 @@ def main():
                 config.output_min_length, config.output_max_length, config.score_clip, config.length_reward_coef
             )
 
-            mean_reward = np.mean(rewards)
-            if mean_reward > ppo_trainer.best_reward:
-                ppo_trainer.best_reward = mean_reward
-                patience = PATIENCE_STEPS
-                print(f"New best mean reward: {mean_reward:.4f}, saving checkpoint")
-                ckpt_dir = os.path.join(CKPT_DIR, config.exp_name, CKPT_DIR_BEST_REWARD)
-                save_checkpoint(ckpt_dir, model, tokenizer)
-            else:
-                patience -= 1
+            mean_reward_aggregate.extend(rewards)
 
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards, lm_inputs=batch["input_ids"],
                                      lm_loss_coef=config.lm_loss_coef)
@@ -835,9 +844,23 @@ def main():
             if step % config.log_freq == 0:
                 ppo_trainer.log_stats(stats, batch, rewards)
 
+                agg_mean = np.mean(mean_reward_aggregate)
+                mean_reward_aggregate = []
+                if agg_mean > ppo_trainer.best_reward:
+                    ppo_trainer.best_reward = agg_mean
+                    patience = PATIENCE_STEPS
+                    print(f"New best mean reward over {config.log_freq} steps: {agg_mean:.4f}, saving checkpoint")
+                    ckpt_dir = os.path.join(CKPT_DIR, config.exp_name, CKPT_DIR_BEST_REWARD)
+                    save_checkpoint(ckpt_dir, model, tokenizer)
+                else:
+                    patience -= 1
+
             step += 1
             if step >= config.steps:
+                print("reached max steps, stopping training.")
                 break
+
+        eval(model, tokenizer, config, ppo_trainer, lm_val_dataloader, epoch)
 
 
 if __name__ == "__main__":

@@ -18,9 +18,9 @@ def summarize_results(args):
     metrics_detailed = [c for c in results.columns if
                c.startswith("zorro_filtered_childes_phenomena/") or c.startswith("blimp_filtered_childes_phenomena/")]
 
-    filter_models = ["baseline", "length_reward_0_entropy_001_lm_0"]
+    filter_models = ["baseline", "length_reward_0_entropy_001_lm_0", "length_reward_001_entropy_001_lm_001"]
 
-    for metrics in [metrics_base, metrics_detailed]:
+    for metrics in [metrics_detailed, metrics_base]:
         avg_results = []
 
         results_baseline = results[results.index.str.startswith("lightning_logs")]
@@ -47,7 +47,7 @@ def summarize_results(args):
                                        for x in results_other.index.values]
 
         for model_name in results_other.model_name.unique():
-            results_model = results_other[results_other.model_name == model_name]
+            results_model = results_other[results_other.model_name == model_name].copy()
             item = create_avg_entry(results_model, model_name, metrics)
             avg_results.append(item)
 
