@@ -149,6 +149,7 @@ def eval_grammaticality_produced_utts(model, tokenizer, childes_grammar_model, c
     print(sample_df.sort_values("score_childes_grammaticality").to_latex(index=False))
     path_sample_utts = os.path.join(model_path, "sample_utts.csv")
     print(f"saving sample utts to {path_sample_utts}")
+    os.makedirs(model_path, exist_ok=True)
     sample_df.to_csv(path_sample_utts)
 
     print(
