@@ -110,8 +110,11 @@ def generate(model, tokenizer, batch_size, output_max_length):
     return batch
 
 
-def eval_grammaticality_produced_utts(model, tokenizer, childes_grammar_model, childes_grammar_model_tokenizer, gec_model,
-                                      gec_model_tokenizer, model_path):
+def eval_grammaticality_produced_utts(model, tokenizer, childes_grammar_model, childes_grammar_model_tokenizer,
+                                      gec_model,
+                                      gec_model_tokenizer, model_path, num_batches=200, batch_size=50,
+                                      output_max_length=DEFAULT_MAX_GENERATION_LEN,
+                                      ):
     # sanity check
     # test_utts = ["I like this.", "like this.", "What is this?", "What this?", "He like that.", "He likes that.",
     #              "They like him.", "Do this now.", "She likes himself.", "She likes herself.", "This is an apple.",
@@ -126,8 +129,8 @@ def eval_grammaticality_produced_utts(model, tokenizer, childes_grammar_model, c
     all_scores_childes_grammar = []
     all_scores_gec = []
     sample_df = None
-    for i in range(args.num_batches):
-        batch = generate(model, tokenizer, args.batch_size, args.output_max_length)
+    for i in range(num_batches):
+        batch = generate(model, tokenizer, batch_size, output_max_length)
         scores_childes_grammar, scores_gec, utterances = compute_scores(batch, childes_grammar_model,
                                                                         childes_grammar_model_tokenizer, gec_model,
                                                                         gec_model_tokenizer, tokenizer)
@@ -214,8 +217,8 @@ def get_args():
     parser.add_argument("--model_paths", type=str, nargs="+", required=True)
     parser.add_argument("--eval_model_path", type=str, required=True)
 
-    parser.add_argument("--batch_size", type=int, default=1024)
-    parser.add_argument("--num_batches", type=int, default=10)
+    parser.add_argument("--batch_size", type=int, default=50)
+    parser.add_argument("--num_batches", type=int, default=200)
     parser.add_argument("--output_max_length", type=int, default=DEFAULT_MAX_GENERATION_LEN)
 
     return parser.parse_args()
