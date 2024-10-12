@@ -14,6 +14,8 @@ CHILDES_RL_DATA_FILE = os.path.join(DATA_DIR, "conversations_min_age_10.csv")
 BABYLM_DATA_DIR = os.path.join(BASE_DATA_DIR, "babylm_data")
 BABYLM_DATA_DIR_CLEAN = os.path.join(BASE_DATA_DIR, "babylm_data_clean")
 
+SIMPLE_SYNTAX_EVAL_DIR = os.path.join(BABYLM_DATA_DIR, "evaluation_data", "simple_syntax")
+
 TRAIN_SET = "train"
 DEV_SET = "dev"
 
@@ -122,6 +124,8 @@ def parse_babylm_metrics_results(out):
         results["blimp"] = out["results"].pop("blimp_filtered")["acc,none"]
     if "blimp_filtered_childes" in out["results"]:
         results["blimp_filtered_childes"] = out["results"].pop("blimp_filtered_childes")["acc,none"]
+    if "simple_syntax" in out["results"]:
+        results["simple_syntax"] = out["results"].pop("simple_syntax")["acc,none"]
 
     phenomenon_results = dict()
     for key, val in out["results"].items():
@@ -138,6 +142,9 @@ def parse_babylm_metrics_results(out):
         elif metric_category.startswith("blimp"):
             metric = key.replace("_filtered", "")
             phenomenon = BLIMP_METRIC_TO_PHENOMENON[metric]
+        elif metric_category.startswith("simple"):
+            phenomenon = key
+            metric = key
         else:
             raise RuntimeError("Unknown metric key: ", key)
         prefix = metric_category + '/' + phenomenon
