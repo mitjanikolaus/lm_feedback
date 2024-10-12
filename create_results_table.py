@@ -15,10 +15,11 @@ def summarize_results(args):
     results = pd.read_csv(args.results_file, index_col=0)
     metrics_base = ["zorro_filtered_childes", "blimp_filtered_childes", "scores_childes_grammar", "scores_gec"]
     # print(results[metrics])
+
     metrics_detailed = [c for c in results.columns if
                c.startswith("zorro_filtered_childes_phenomena/") or c.startswith("blimp_filtered_childes_phenomena/")]
-
-    filter_models = ["baseline", "length_reward_0_entropy_001_lm_0", "length_reward_001_entropy_001_lm_001"]
+    # metrics_detailed = [c for c in results.columns if
+    #            c.startswith("zorro_filtered_childes/") or c.startswith("blimp_filtered_childes/")]
 
     for metrics in [metrics_detailed, metrics_base]:
         avg_results = []
@@ -52,6 +53,8 @@ def summarize_results(args):
             avg_results.append(item)
 
         avg_results = pd.DataFrame(avg_results)
+
+        filter_models = ["baseline", "length_reward_0_entropy_001_lm_0", "length_reward_001_entropy_001_lm_001", "entropy_001"]
         avg_results = avg_results[avg_results.model.isin(filter_models)]
 
         avg_results.set_index("model", inplace=True)
