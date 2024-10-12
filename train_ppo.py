@@ -1,6 +1,7 @@
 import copy
 import math
 import os
+import pickle
 import time
 import typing
 import warnings
@@ -605,6 +606,7 @@ def eval_babylm(model, tokenizer, ckpt_dir, ppo_trainer, device, config, eval_ba
         ppo_trainer.best_blimp = results['blimp_filtered_childes']
         print(f"New best blimp: {results['blimp_filtered_childes']:.2f}, saving checkpoint")
         save_checkpoint(os.path.join(CKPT_DIR, config.exp_name, CKPT_DIR_BEST_BLIMP), model, tokenizer)
+    return results
 
 
 @dataclass
@@ -689,7 +691,7 @@ def save_checkpoint(dir, model, tokenizer):
 
 def eval(model, tokenizer, config, trainer, ckpt_dir, final=False):
     # eval_lm_loss(model, tokenizer, config, trainer, lm_val_dataloader)
-
+    all_results = {}
     if config.grammar_eval_model_path is not None:
         childes_grammar_model, childes_grammar_model_tokenizer = load_childes_grammar_model(
             config.grammar_eval_model_path)
@@ -700,13 +702,16 @@ def eval(model, tokenizer, config, trainer, ckpt_dir, final=False):
                                                                                gec_model,
                                                                                gec_model_tokenizer, model_path)
         results = {"grammaticality_childes": np.mean(scores_childes_grammar), "grammaticality_gec": np.mean(scores_gec)}
+        all_results.update(results)
         step = trainer.current_step if not final else trainer.current_step + 1
         if config.log_with == "wandb":
             wandb.log(results, commit=False, step=step)
         else:
             trainer.accelerator.log(results, step=step, log_kwargs={"commit": False})
 
-    eval_babylm(model, tokenizer, ckpt_dir=ckpt_dir, ppo_trainer=trainer, device=trainer.accelerator.device.index, config=config)
+    results_babylm = eval_babylm(model, tokenizer, ckpt_dir=ckpt_dir, ppo_trainer=trainer, device=trainer.accelerator.device.index, config=config)
+    all_results.update(results_babylm)
+    return all_results
 
 
 def compute_rewards(utterances, utt_lengths, utts_contain_eos, value_model, value_model_tokenizer, output_min_length,
@@ -748,7 +753,8 @@ def final_eval(config, trainer):
     model = AutoModelForCausalLM.from_pretrained(model_path).to(device)
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     model.eval()
-    eval(model, tokenizer, config, trainer, ckpt_dir=model_path, final=True)
+    results = eval(model, tokenizer, config, trainer, ckpt_dir=model_path, final=True)
+    pickle.dump(results, open(os.path.join(CKPT_DIR, config.exp_name, CKPT_DIR_BEST_REWARD, "results.p"), "wb"))
 
 
 def main():
