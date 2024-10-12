@@ -860,7 +860,7 @@ def main():
                 if agg_mean > ppo_trainer.best_reward:
                     ppo_trainer.best_reward = agg_mean
                     patience = PATIENCE_STEPS
-                    print(f"New best mean reward over {config.log_freq} steps: {agg_mean:.4f}, saving checkpoint")
+                    print(f"New best mean reward at step {ppo_trainer.current_step}: {agg_mean:.4f}, saving checkpoint")
                     ckpt_dir = os.path.join(CKPT_DIR, config.exp_name, CKPT_DIR_BEST_REWARD)
                     save_checkpoint(ckpt_dir, model, tokenizer)
                 else:
