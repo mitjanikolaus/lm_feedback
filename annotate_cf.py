@@ -8,7 +8,7 @@ import pandas as pd
 
 from data import preprocess_childes_utterance
 from train_cf_classifier import DEFAULT_MAX_LENGTH, CFClassifierDataCollatorWithPadding
-from utilities import CHILDES_RL_DATA_FILE
+from utilities import CONVERSATIONS_DATA_FILE
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from datasets import Dataset
@@ -97,7 +97,7 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--model", type=str)
-    parser.add_argument("--data_path", type=str, default=CHILDES_RL_DATA_FILE)
+    parser.add_argument("--data_path", type=str, default=CONVERSATIONS_DATA_FILE)
     parser.add_argument("--target_column", type=str)
 
     return parser.parse_args()

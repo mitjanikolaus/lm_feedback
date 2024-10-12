@@ -16,7 +16,7 @@ from transformers.trainer_pt_utils import nested_detach
 from trl.trainer.utils import print_rich_table
 
 from data import compute_reward_value
-from utilities import CHILDES_RL_DATA_FILE
+from utilities import CONVERSATIONS_DATA_FILE
 
 from transformers import AutoTokenizer, HfArgumentParser, AutoModelForSequenceClassification, PreTrainedModel, \
     PreTrainedTokenizerBase, TrainerCallback
@@ -293,7 +293,7 @@ def build_reward_model_trainer_datasets(fb_data_paths, reward_cr, reward_ack, re
 
 @dataclass
 class CFRewardTrainerConfig(RewardConfig):
-    data_paths: List[str] = field(default_factory=lambda: [CHILDES_RL_DATA_FILE])
+    data_paths: List[str] = field(default_factory=lambda: [CONVERSATIONS_DATA_FILE])
 
     reward_cr: float = 0
     reward_ack: float = 1

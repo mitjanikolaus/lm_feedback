@@ -16,12 +16,11 @@ from torch.utils.data import Dataset, DataLoader
 from nltk.tokenize import sent_tokenize
 
 import pandas as pd
-from transformers import DataCollatorForLanguageModeling, DataCollatorWithPadding, \
-    GPT2TokenizerFast, BertTokenizerFast, PreTrainedTokenizerFast, AutoTokenizer
+from transformers import DataCollatorForLanguageModeling, GPT2TokenizerFast, BertTokenizerFast, PreTrainedTokenizerFast, AutoTokenizer
 
 from tokenizers import Tokenizer, normalizers
 from utilities import BABYLM_DATA_DIR, SPEAKER_CODES_CAREGIVER, BABYLM_DATA_DIR_CLEAN, BABYLM_DATA_PATH_DEV_CLEAN, \
-    DEV_SET, TRAINING_TRACK_STRICT_SMALL, TRAIN_SET, CHILDES_LM_DATA_FILE, CHILDES_RL_DATA_FILE
+    DEV_SET, TRAINING_TRACK_STRICT_SMALL, TRAIN_SET, CHILDES_LM_DATA_FILE
 
 DEV_SET_SIZE = 0.1
 SPLIT_RANDOM_STATE = 1

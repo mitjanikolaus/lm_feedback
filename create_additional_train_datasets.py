@@ -2,12 +2,12 @@ import os
 from collections import Counter
 
 import pandas as pd
-from utilities import CHILDES_RL_DATA_FILE, DATA_DIR
+from utilities import CONVERSATIONS_DATA_FILE, DATA_DIR
 
 LONG_SENTENCE_LENGTH = 30
 
 if __name__ == '__main__':
-    data_path = CHILDES_RL_DATA_FILE
+    data_path = CONVERSATIONS_DATA_FILE
     min_age = data_path.split("min_age_")[1].split(".")[0]
     conversations = pd.read_csv(data_path)
 
