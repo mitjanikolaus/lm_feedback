@@ -829,7 +829,6 @@ def main():
     step = 0
     epoch = 0
     patience = PATIENCE_STEPS
-    mean_reward_aggregate = []
     while step <= config.steps:
         print(f"\nEPOCH: {epoch}")
         epoch += 1
@@ -853,20 +852,17 @@ def main():
                 config.output_min_length, config.output_max_length, config.score_clip, config.length_reward_coef
             )
 
-            mean_reward_aggregate.extend(rewards)
-
             stats = ppo_trainer.step(query_tensors, response_tensors, rewards, lm_inputs=batch["input_ids"],
                                      lm_loss_coef=config.lm_loss_coef)
 
             if step % config.log_freq == 0:
                 ppo_trainer.log_stats(stats, batch, rewards)
 
-                agg_mean = np.mean(mean_reward_aggregate)
-                mean_reward_aggregate = []
-                if agg_mean > ppo_trainer.best_reward:
-                    ppo_trainer.best_reward = agg_mean
+                mean_reward = np.mean(rewards)
+                if mean_reward > ppo_trainer.best_reward:
+                    ppo_trainer.best_reward = mean_reward
                     patience = PATIENCE_STEPS
-                    print(f"New best mean reward at step {ppo_trainer.current_step}: {agg_mean:.4f}, saving checkpoint")
+                    print(f"New best mean reward at step {ppo_trainer.current_step}: {mean_reward:.4f}, saving checkpoint")
                     ckpt_dir = os.path.join(CKPT_DIR, config.exp_name, CKPT_DIR_BEST_REWARD)
                     save_checkpoint(ckpt_dir, model, tokenizer)
                 else:
