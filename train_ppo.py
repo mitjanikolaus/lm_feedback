@@ -871,7 +871,7 @@ def main():
                 print("reached max steps, stopping training.")
                 break
 
-        final_eval(config, ppo_trainer)
+    final_eval(config, ppo_trainer)
 
 
 if __name__ == "__main__":
