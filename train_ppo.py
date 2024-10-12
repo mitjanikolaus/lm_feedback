@@ -699,7 +699,7 @@ def eval(model, tokenizer, config, trainer, ckpt_dir):
                                                                                childes_grammar_model_tokenizer,
                                                                                gec_model,
                                                                                gec_model_tokenizer, model_path)
-        results = {"grammaticality_childes": scores_childes_grammar, "grammaticality_gec": scores_gec}
+        results = {"grammaticality_childes": np.mean(scores_childes_grammar), "grammaticality_gec": np.mean(scores_gec)}
         if config.log_with == "wandb":
             wandb.log(results, commit=False, step=trainer.current_step)
         else:
