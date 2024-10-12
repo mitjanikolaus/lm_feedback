@@ -1,4 +1,5 @@
 import argparse
+import math
 
 import torch
 from tqdm import tqdm
@@ -9,7 +10,7 @@ from utilities import CONVERSATIONS_ANNOTATED_DATA_FILE
 
 tqdm.pandas()
 
-BATCH_SIZE = 512
+BATCH_SIZE = 100
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -20,7 +21,12 @@ def main(args):
 
     data = pd.read_csv(args.data_path)
 
-    annotations = compute_scores_childes_grammaticality(data["utt_transcript_clean"], model, tokenizer)
+    annotations = []
+    num_batches = math.ceil(data.shape[0] / BATCH_SIZE)
+    for i in range(num_batches):
+        data_batch = data.iloc[i * BATCH_SIZE:(i + 1) * BATCH_SIZE]
+        is_grammatical = compute_scores_childes_grammaticality(data_batch["utt_transcript_clean"], model, tokenizer)
+        annotations.extend(is_grammatical)
     data["is_grammatical"] = annotations
 
     out_path = args.data_path.replace(".csv", "_annotated_grammar.csv")
