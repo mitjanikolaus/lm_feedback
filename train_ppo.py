@@ -687,7 +687,7 @@ def save_checkpoint(dir, model, tokenizer):
     tokenizer.save_pretrained(dir)
 
 
-def eval(model, tokenizer, config, trainer, ckpt_dir):
+def eval(model, tokenizer, config, trainer, ckpt_dir, final=False):
     # eval_lm_loss(model, tokenizer, config, trainer, lm_val_dataloader)
 
     if config.grammar_eval_model_path is not None:
@@ -700,10 +700,11 @@ def eval(model, tokenizer, config, trainer, ckpt_dir):
                                                                                gec_model,
                                                                                gec_model_tokenizer, model_path)
         results = {"grammaticality_childes": np.mean(scores_childes_grammar), "grammaticality_gec": np.mean(scores_gec)}
+        step = trainer.current_step if not final else trainer.current_step + 1
         if config.log_with == "wandb":
-            wandb.log(results, commit=False, step=trainer.current_step)
+            wandb.log(results, commit=False, step=step)
         else:
-            trainer.accelerator.log(results, step=trainer.current_step, log_kwargs={"commit": False})
+            trainer.accelerator.log(results, step=step, log_kwargs={"commit": False})
 
     eval_babylm(model, tokenizer, ckpt_dir=ckpt_dir, ppo_trainer=trainer, device=trainer.accelerator.device.index, config=config)
 
@@ -747,7 +748,7 @@ def final_eval(config, trainer):
     model = AutoModelForCausalLM.from_pretrained(model_path).to(device)
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     model.eval()
-    eval(model, tokenizer, config, trainer, ckpt_dir=model_path)
+    eval(model, tokenizer, config, trainer, ckpt_dir=model_path, final=True)
 
 
 def main():
