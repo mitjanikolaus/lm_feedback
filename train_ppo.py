@@ -834,7 +834,7 @@ def main():
         epoch += 1
         for batch in tqdm(ppo_trainer.dataloader):
             if patience < 1:
-                print(f"\n\nNo reward improvement for {PATIENCE_STEPS} steps, stopping training.")
+                print(f"\n\nNo reward improvement for {PATIENCE_STEPS*config.log_freq} steps, stopping training.")
                 final_eval(config, ppo_trainer)
                 return
 
