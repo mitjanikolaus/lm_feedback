@@ -43,8 +43,6 @@ def summarize_results(args):
     for metrics in [metrics_detailed, metrics_base]:
         avg_results = []
 
-        results_baseline = results[results.index.str.startswith("lightning_logs")]
-
         def create_avg_entry(df, name, metrics):
             std_values = [std if not np.isnan(std) else 0 for std in df[metrics].std(axis=0).values]
             keys = [k.replace("_filtered_childes", "") for k in df[metrics].columns]
@@ -58,7 +56,16 @@ def summarize_results(args):
             item.update(results_avg)
             return item
 
-        item = create_avg_entry(results_baseline, "baseline", metrics)
+        results_baseline_1e5 = results[results.index.str.startswith("lightning_logs/dkwnlvzm") | results.index.str.startswith("lightning_logs/95f8k8zc") | results.index.str.startswith("lightning_logs/967ufsfk")]
+        item = create_avg_entry(results_baseline_1e5, "baseline_1e6", metrics)
+        avg_results.append(item)
+
+        results_baseline_1e6 = results[results.index.str.startswith("lightning_logs/lb86b69m") | results.index.str.startswith("lightning_logs/he3nnzld") | results.index.str.startswith("lightning_logs/5z07yaqp")]
+        item = create_avg_entry(results_baseline_1e6, "baseline_1e6", metrics)
+        avg_results.append(item)
+
+        results_baseline_1e7 = results[results.index.str.startswith("lightning_logs/qpp61q7x") | results.index.str.startswith("lightning_logs/m6s9vokb") | results.index.str.startswith("lightning_logs/uu5rtja8")]
+        item = create_avg_entry(results_baseline_1e7, "baseline_1e6", metrics)
         avg_results.append(item)
 
         results_other = results[~results.index.str.startswith("lightning_logs")].copy()
