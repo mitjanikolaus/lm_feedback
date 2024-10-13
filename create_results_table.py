@@ -57,15 +57,15 @@ def summarize_results(args):
             return item
 
         results_baseline_1e5 = results[results.index.str.startswith("lightning_logs/dkwnlvzm") | results.index.str.startswith("lightning_logs/95f8k8zc") | results.index.str.startswith("lightning_logs/967ufsfk")]
-        item = create_avg_entry(results_baseline_1e5, "baseline_1e5", metrics)
+        item = create_avg_entry(results_baseline_1e5, "1e5_baseline", metrics)
         avg_results.append(item)
 
         results_baseline_1e6 = results[results.index.str.startswith("lightning_logs/lb86b69m") | results.index.str.startswith("lightning_logs/he3nnzld") | results.index.str.startswith("lightning_logs/5z07yaqp")]
-        item = create_avg_entry(results_baseline_1e6, "baseline_1e6", metrics)
+        item = create_avg_entry(results_baseline_1e6, "1e6_baseline", metrics)
         avg_results.append(item)
 
         results_baseline_1e7 = results[results.index.str.startswith("lightning_logs/qpp61q7x") | results.index.str.startswith("lightning_logs/m6s9vokb") | results.index.str.startswith("lightning_logs/uu5rtja8")]
-        item = create_avg_entry(results_baseline_1e7, "baseline_1e7", metrics)
+        item = create_avg_entry(results_baseline_1e7, "1e7_baseline", metrics)
         avg_results.append(item)
 
         results_other = results[~results.index.str.startswith("lightning_logs")].copy()
@@ -86,6 +86,7 @@ def summarize_results(args):
         #                  "entropy_001", "entropy_001_no_query"]
         # avg_results = avg_results[avg_results.model.isin(filter_models)]
 
+        avg_results.sort_values(by="model", inplace=True)
         avg_results.set_index("model", inplace=True)
         print(avg_results)
         print(avg_results.to_latex(escape=False))
