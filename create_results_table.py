@@ -87,8 +87,8 @@ def summarize_results(args):
         # avg_results = avg_results[avg_results.model.isin(filter_models)]
 
         avg_results.set_index("model", inplace=True)
-        print(avg_results.T)
-        print(avg_results.T.to_latex(escape=False))
+        print(avg_results)
+        print(avg_results.to_latex(escape=False))
 
         print("\n\n")
 
