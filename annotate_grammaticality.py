@@ -2,13 +2,12 @@ import argparse
 import math
 
 import torch
-from tqdm import tqdm
 import pandas as pd
+from matplotlib import pyplot as plt
 
 from eval import load_childes_grammar_model, compute_scores_childes_grammaticality
 from utilities import CONVERSATIONS_ANNOTATED_DATA_FILE
-
-tqdm.pandas()
+import seaborn as sns
 
 BATCH_SIZE = 100
 
@@ -23,8 +22,8 @@ def main(args):
 
     annotations = []
     num_batches = math.ceil(data.shape[0] / BATCH_SIZE)
-    for i in range(num_batches):
-        data_batch = data.iloc[i * BATCH_SIZE:(i + 1) * BATCH_SIZE]
+    for is_cr in range(num_batches):
+        data_batch = data.iloc[is_cr * BATCH_SIZE:(is_cr + 1) * BATCH_SIZE]
         is_grammatical = compute_scores_childes_grammaticality(data_batch["utt_transcript_clean"], model, tokenizer)
         annotations.extend(is_grammatical)
     data["is_grammatical"] = annotations
@@ -49,6 +48,42 @@ def main(args):
     pd.set_option('display.width', 1000)
     print(data.sample(50))
 
+    entries = []
+    for is_cr in [0, 1]:
+        data_filtered = data[data.is_cr == is_cr]
+        counts = data_filtered.is_grammatical.value_counts(normalize=True)
+        print(counts)
+        for is_cr, count in zip(counts.index, counts):
+            print(count)
+            grammaticality = "ungrammatical" if is_cr == -1 else "grammatical" if is_cr == 1 else "ambiguous"
+            entries.append({"is_cr": "clarification request" if is_cr else "other", "grammaticality": grammaticality, "proportion": count})
+
+    df = pd.DataFrame(entries)
+    df.sort_values(by='is_cr', inplace=True)
+    sns.set_palette("Set2")
+    fig = sns.barplot(df, x="grammaticality", y="proportion", hue="is_cr")
+    plt.xlabel("")
+    fig.legend_.set_title(None)
+    fig.get_figure().savefig("grammaticality.png", dpi=300)
+
+    # plt.figure()
+    # entries = []
+    # for is_grammatical in [-1, 0, 1]:
+    #     data_filtered = data[data.is_grammatical == is_grammatical]
+    #     counts = data_filtered.is_cr.value_counts(normalize=True)
+    #     print(counts)
+    #     for is_cr, count in zip(counts.index, counts):
+    #         grammaticality = "ungrammatical" if is_grammatical == -1 else "grammatical" if is_grammatical == 1 else "ambiguous"
+    #         entries.append({"is_cr": "clarification request" if is_cr else "other", "grammaticality": grammaticality, "proportion": count})
+    #
+    # df = pd.DataFrame(entries)
+    # df.sort_values(by='is_cr', inplace=True)
+    # sns.set_palette("Set2")
+    # print(df)
+    # fig = sns.barplot(df, x="grammaticality", y="proportion", hue="is_cr")
+    # plt.xlabel("")
+    # fig.legend_.set_title(None)
+    # fig.get_figure().savefig("grammaticality2.png", dpi=300)
 
 def get_args():
     parser = argparse.ArgumentParser()
