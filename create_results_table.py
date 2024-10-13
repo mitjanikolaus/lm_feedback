@@ -57,7 +57,7 @@ def summarize_results(args):
             return item
 
         results_baseline_1e5 = results[results.index.str.startswith("lightning_logs/dkwnlvzm") | results.index.str.startswith("lightning_logs/95f8k8zc") | results.index.str.startswith("lightning_logs/967ufsfk")]
-        item = create_avg_entry(results_baseline_1e5, "baseline_1e6", metrics)
+        item = create_avg_entry(results_baseline_1e5, "baseline_1e5", metrics)
         avg_results.append(item)
 
         results_baseline_1e6 = results[results.index.str.startswith("lightning_logs/lb86b69m") | results.index.str.startswith("lightning_logs/he3nnzld") | results.index.str.startswith("lightning_logs/5z07yaqp")]
@@ -65,7 +65,7 @@ def summarize_results(args):
         avg_results.append(item)
 
         results_baseline_1e7 = results[results.index.str.startswith("lightning_logs/qpp61q7x") | results.index.str.startswith("lightning_logs/m6s9vokb") | results.index.str.startswith("lightning_logs/uu5rtja8")]
-        item = create_avg_entry(results_baseline_1e7, "baseline_1e6", metrics)
+        item = create_avg_entry(results_baseline_1e7, "baseline_1e7", metrics)
         avg_results.append(item)
 
         results_other = results[~results.index.str.startswith("lightning_logs")].copy()
