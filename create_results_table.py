@@ -64,7 +64,7 @@ def summarize_results(args):
         results_other = results[~results.index.str.startswith("lightning_logs")].copy()
 
         results_other["model_name"] = [
-            re.sub(r'_seed_\d', '', x).replace("ckpts_ppo/1e6_", "").replace("/best_reward/", "").replace(
+            re.sub(r'_seed_\d', '', x).replace("ckpts_ppo/", "").replace("/best_reward/", "").replace(
                 "/best_reward", "")
             for x in results_other.index.values]
 
