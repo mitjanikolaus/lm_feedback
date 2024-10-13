@@ -1,8 +1,14 @@
 import argparse
+import glob
+import os
+import pickle
 import re
+from typing import List
 
 import numpy as np
 import pandas as pd
+
+from train_ppo import CKPT_DIR, CKPT_DIR_BEST_REWARD
 
 
 def summarize_results(args):
@@ -13,11 +19,24 @@ def summarize_results(args):
     pd.set_option("expand_frame_repr", False)
 
     results = pd.read_csv(args.results_file, index_col=0)
-    metrics_base = ["zorro_filtered_childes", "blimp_filtered_childes", "scores_childes_grammar", "scores_gec"]
+
+    # temp fix
+    results["grammaticality_childes"] = results["scores_childes_grammar"]
+    results["grammaticality_gec"] = results["scores_gec"]
+
+    results_files: list[str] = list(glob.glob(os.path.join(CKPT_DIR, '*', CKPT_DIR_BEST_REWARD, "results.p")))
+
+    for file in results_files:
+        data = pickle.load(open(file, "rb"))
+        model_name = os.path.dirname(file)
+        results.loc[model_name] = data
+
+    metrics_base = ["zorro_filtered_childes", "blimp_filtered_childes", "grammaticality_childes", "grammaticality_gec"]
     # print(results[metrics])
 
     metrics_detailed = [c for c in results.columns if
-               c.startswith("zorro_filtered_childes_phenomena/") or c.startswith("blimp_filtered_childes_phenomena/")]
+                        c.startswith("zorro_filtered_childes_phenomena/") or c.startswith(
+                            "blimp_filtered_childes_phenomena/")]
     # metrics_detailed = [c for c in results.columns if
     #            c.startswith("zorro_filtered_childes/") or c.startswith("blimp_filtered_childes/")]
 
@@ -44,8 +63,10 @@ def summarize_results(args):
 
         results_other = results[~results.index.str.startswith("lightning_logs")].copy()
 
-        results_other["model_name"] = [re.sub(r'_seed_\d', '', x).replace("ckpts_ppo/1e6_", "").replace("/best_reward/", "")
-                                       for x in results_other.index.values]
+        results_other["model_name"] = [
+            re.sub(r'_seed_\d', '', x).replace("ckpts_ppo/1e6_", "").replace("/best_reward/", "").replace(
+                "/best_reward", "")
+            for x in results_other.index.values]
 
         for model_name in results_other.model_name.unique():
             results_model = results_other[results_other.model_name == model_name].copy()
@@ -54,8 +75,9 @@ def summarize_results(args):
 
         avg_results = pd.DataFrame(avg_results)
 
-        filter_models = ["baseline", "length_reward_0_entropy_001_lm_0", "length_reward_001_entropy_001_lm_001", "entropy_001"]
-        avg_results = avg_results[avg_results.model.isin(filter_models)]
+        # filter_models = ["baseline", "length_reward_001_entropy_001_lm_001",
+        #                  "entropy_001", "entropy_001_no_query"]
+        # avg_results = avg_results[avg_results.model.isin(filter_models)]
 
         avg_results.set_index("model", inplace=True)
         print(avg_results.T)

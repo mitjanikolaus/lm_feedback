@@ -200,14 +200,14 @@ def eval_models(args):
                                                                                childes_grammar_model_tokenizer,
                                                                                gec_model,
                                                                                gec_model_tokenizer, model_path)
-        results.update({"model": model_path, "scores_childes_grammar": np.mean(scores_childes_grammar),
-                        "scores_gec": np.mean(scores_gec)})
+        results.update({"model": model_path, "grammaticality_childes": np.mean(scores_childes_grammar),
+                        "grammaticality_gec": np.mean(scores_gec)})
         all_results.append(results)
 
     all_results = pd.DataFrame(all_results)
     all_results.set_index("model", inplace=True)
     all_results.to_csv("results.csv", index=True, index_label="model")
-    print(all_results[["zorro_filtered_childes", "blimp_filtered_childes", "scores_childes_grammar", "scores_gec"]])
+    print(all_results[["zorro_filtered_childes", "blimp_filtered_childes", "grammaticality_childes", "grammaticality_gec"]])
 
     print(f"\n\nskipped: {skipped}")
 
