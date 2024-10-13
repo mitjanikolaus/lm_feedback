@@ -21,8 +21,8 @@ def summarize_results(args):
     results = pd.read_csv(args.results_file, index_col=0)
 
     # temp fix
-    results["grammaticality_childes"] = results["scores_childes_grammar"]
-    results["grammaticality_gec"] = results["scores_gec"]
+    # results["grammaticality_childes"] = results["scores_childes_grammar"]
+    # results["grammaticality_gec"] = results["scores_gec"]
 
     results_files: list[str] = list(glob.glob(os.path.join(CKPT_DIR, '*', CKPT_DIR_BEST_REWARD, "results.p")))
 
