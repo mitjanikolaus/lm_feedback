@@ -47,7 +47,7 @@ def summarize_results(args):
             if len(df) != 3:
                 print(f"Expected 3 values, but got {len(df)} for {name}")
 
-            data_size = name.split("_")[0]
+            data_size = name.split("_")[0] + " words"
             name = "-".join(name.split("_")[1:])
 
             item = {"model": name, "data size": data_size}
