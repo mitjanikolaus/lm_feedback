@@ -50,7 +50,7 @@ def summarize_results(args):
             data_size = name.split("_")[0]
             name = "-".join(name.split("_")[1:])
 
-            item = {"model": name, "data_size": data_size}
+            item = {"model": name, "data size": data_size}
             item.update(results_avg)
             return item
 
@@ -84,8 +84,8 @@ def summarize_results(args):
         #                  "entropy_001", "entropy_001_no_query"]
         # avg_results = avg_results[avg_results.model.isin(filter_models)]
 
-        avg_results.sort_values(by=["data_size", "model"], inplace=True)
-        avg_results.set_index(["data_size", "model"], inplace=True)
+        avg_results.sort_values(by=["data size", "model"], inplace=True)
+        avg_results.set_index(["data size", "model"], inplace=True)
         print(avg_results)
         print(avg_results.to_latex(escape=False))
 
