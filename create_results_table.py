@@ -20,10 +20,6 @@ def summarize_results(args):
 
     results = pd.read_csv(args.results_file, index_col=0)
 
-    # temp fix
-    # results["grammaticality_childes"] = results["scores_childes_grammar"]
-    # results["grammaticality_gec"] = results["scores_gec"]
-
     results_files: list[str] = list(glob.glob(os.path.join(CKPT_DIR, '*', CKPT_DIR_BEST_REWARD, "results.p")))
 
     for file in results_files:
@@ -32,7 +28,6 @@ def summarize_results(args):
         results.loc[model_name] = data
 
     metrics_base = ["zorro_filtered_childes", "blimp_filtered_childes", "grammaticality_childes", "grammaticality_gec"]
-    # print(results[metrics])
 
     metrics_detailed = [c for c in results.columns if
                         c.startswith("zorro_filtered_childes_phenomena/") or c.startswith(
@@ -52,7 +47,10 @@ def summarize_results(args):
             if len(df) != 3:
                 print(f"Expected 3 values, but got {len(df)} for {name}")
 
-            item = {"model": name}
+            data_size = name.split("_")[0]
+            name = "-".join(name.split("_")[1:])
+
+            item = {"model": name, "data_size": data_size}
             item.update(results_avg)
             return item
 
@@ -86,8 +84,8 @@ def summarize_results(args):
         #                  "entropy_001", "entropy_001_no_query"]
         # avg_results = avg_results[avg_results.model.isin(filter_models)]
 
-        avg_results.sort_values(by="model", inplace=True)
-        avg_results.set_index("model", inplace=True)
+        avg_results.sort_values(by=["data_size", "model"], inplace=True)
+        avg_results.set_index(["data_size", "model"], inplace=True)
         print(avg_results)
         print(avg_results.to_latex(escape=False))
 
@@ -97,7 +95,7 @@ def summarize_results(args):
 def get_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--results_file", type=str, default="results.csv")
+    parser.add_argument("--results_file", type=str, default="results_baselines.csv")
 
     return parser.parse_args()
 
