@@ -99,22 +99,28 @@ def summarize_results(args):
 
             results = results[["model_name", "data size"] + metrics]
 
-            results.rename(columns={"grammaticality_childes": "grammaticality\nchildes", "grammaticality_gec": "grammaticality\ngec"}, inplace=True)
+            # results.rename(columns={"grammaticality_childes": "grammaticality\nchildes", "grammaticality_gec": "grammaticality\ngec"}, inplace=True)
             results = results.melt(id_vars=["data size", "model_name"], var_name="metric")
 
             plt.figure()
             # g = sns.FacetGrid(results, col="metric", col_wrap=2, height=5)  # , ylim=(0, 10)
             # g.map(sns.pointplot, "data size", "value", "model_name", errorbar="sd", linestyle="none",
             #       dodge=.3)  # order=[1, 2, 3]
-            g = sns.catplot(x="metric", y="value", hue="model_name", data=results,
-                            row="data size", height=2, aspect=2.6, sharey=True,
-                            dodge=.2, kind="point", linestyle="none", linewidth=2, errorbar="sd")  # col_wrap=2,
-            # g.set_xticklabels(rotation=80)
-            g.set_titles("pretraining data size: {row_name}")
+            g = sns.catplot(x="model_name", y="value", hue="data size", data=results,
+                            col="metric", col_wrap=2, height=2.5, aspect=2, sharey=True,
+                            kind="point", linewidth=1.5, errorbar="sd")
+            g.set_titles("{col_name}")
+
             g.set_axis_labels("", "")
-            # plt.tight_layout()
+
+            g.set(ylim=(0, 1))
+            g._legend.remove()
+            g.axes[-1].legend(loc='upper left', ncol=3, title="Pretraining data size", bbox_to_anchor=(-0.55, 2.8))
+            plt.subplots_adjust(left=0.1, right=0.9, top=0.8, bottom=0.1)
+            # sns.move_legend(g, "center right", bbox_to_anchor=(0.95, 0.55))
             plt.savefig("results.png", dpi=300)
             plt.show()
+
 
             # plt.figure()
             # # g = sns.FacetGrid(results, col="metric", col_wrap=2, height=5)  # , ylim=(0, 10)
