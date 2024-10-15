@@ -18,6 +18,12 @@ BABYLM_DATA_DIR_CLEAN = os.path.join(BASE_DATA_DIR, "babylm_data_clean")
 TRAIN_SET = "train"
 DEV_SET = "dev"
 
+PPO_CKPTS_DIR = "ckpts_ppo"
+CKPT_DIR_BEST_VAL_LOSS = "best_val_loss"
+CKPT_DIR_BEST_ZORRO = "best_zorro"
+CKPT_DIR_BEST_BLIMP = "best_blimp"
+CKPT_DIR_BEST_REWARD = "best_reward"
+
 BABYLM_DATA_PATH_DEV = os.path.join(BABYLM_DATA_DIR, DEV_SET)
 BABYLM_DATA_PATH_DEV_CLEAN = os.path.join(BABYLM_DATA_DIR_CLEAN, DEV_SET)
 
