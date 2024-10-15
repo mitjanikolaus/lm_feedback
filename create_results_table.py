@@ -30,30 +30,14 @@ def summarize_results(args):
 
     metrics_base = ["zorro", "blimp", "grammaticality_childes", "grammaticality_gec"]
 
-    metrics_detailed = [c for c in results.columns if
+    metrics_detailed = [c.replace("_filtered_childes", "").replace("phenomena", "") for c in results.columns if
                         c.startswith("zorro_filtered_childes_phenomena/") or c.startswith(
                             "blimp_filtered_childes_phenomena/")]
     # metrics_detailed = [c for c in results.columns if
     #            c.startswith("zorro_filtered_childes/") or c.startswith("blimp_filtered_childes/")]
 
-    for metrics in [metrics_base]:  # metrics_detailed
+    for metrics in [metrics_detailed, metrics_base]:  # metrics_detailed
         avg_results = []
-
-        def create_avg_entry(df, name, data_size, metrics):
-            std_values = [std if not np.isnan(std) else 0 for std in df[metrics].std(axis=0).values]
-            keys = [k.replace('_', ' ') for k in df[metrics].columns]
-            results_avg = {f"{key}": f"{mean:.3f} $\\pm$ {std:.3f}" for key, mean, std in
-                           zip(keys, df[metrics].mean(axis=0).values, std_values)}
-
-            if len(df) != 3:
-                print(f"Expected 3 values, but got {len(df)} for {name}")
-
-            # data_size = name.split("_")[0] + " words"
-            # name = "-".join(name.split("_")[1:])
-
-            item = {"model_name": name, "data size": data_size}
-            item.update(results_avg)
-            return item
 
         results.loc[~results.index.str.startswith("lightning_logs/"), "model_name"] = results.loc[
             ~results.index.str.startswith("lightning_logs/")].index.map(
@@ -74,40 +58,30 @@ def summarize_results(args):
                 "lightning_logs/uu5rtja8"), 'model_name'] = '1e7-baseline'
 
         results["data size"] = results.model_name.map(lambda x: x.split("-")[0] + " words")
-        results["model_name"] = results.model_name.map(lambda x: "-".join(x.split("-")[1:]).replace("seed-1-", "").replace("seed-2-", "").replace("seed-3-", ""))
+        results["model_name"] = results.model_name.map(
+            lambda x: "-".join(x.split("-")[1:]).replace("seed-1-", "").replace("seed-2-", "").replace("seed-3-", ""))
 
-        # results_baseline_1e5 = results[
-        #     results.index.str.startswith("lightning_logs/dkwnlvzm") | results.index.str.startswith(
-        #         "lightning_logs/95f8k8zc") | results.index.str.startswith("lightning_logs/967ufsfk")]
-        # item = create_avg_entry(results_baseline_1e5, "1e5_baseline", metrics)
-        # avg_results.append(item)
-        #
-        # results_baseline_1e6 = results[
-        #     results.index.str.startswith("lightning_logs/lb86b69m") | results.index.str.startswith(
-        #         "lightning_logs/he3nnzld") | results.index.str.startswith("lightning_logs/5z07yaqp")]
-        # item = create_avg_entry(results_baseline_1e6, "1e6_baseline", metrics)
-        # avg_results.append(item)
-        #
-        # results_baseline_1e7 = results[
-        #     results.index.str.startswith("lightning_logs/qpp61q7x") | results.index.str.startswith(
-        #         "lightning_logs/m6s9vokb") | results.index.str.startswith("lightning_logs/uu5rtja8")]
-        # item = create_avg_entry(results_baseline_1e7, "1e7_baseline", metrics)
-        # avg_results.append(item)
-
-        # results_other = results[~results.index.str.startswith("lightning_logs")].copy()
-        #
-        # results_other["model_name"] = [
-        #     re.sub(r'_seed_\d', '', x).replace("ckpts_ppo/", "").replace("/best_reward/", "").replace(
-        #         "/best_reward", "")
-        #     for x in results_other.index.values]
-
-        results.rename(columns={"zorro_filtered_childes": "zorro", "blimp_filtered_childes": "blimp"}, inplace=True)
+        results.rename(columns=lambda x: x.replace("_filtered_childes", "").replace("phenomena", ""), inplace=True)
 
         results.replace({"entropy-001-lm-loss-001": "finetuned"}, inplace=True)
         filter_models = ["baseline", "finetuned"]
         results = results[results.model_name.isin(filter_models)]
 
-        results = results[["model_name", "data size"]+metrics]
+        def create_avg_entry(df, name, data_size, metrics):
+            std_values = [std if not np.isnan(std) else 0 for std in df[metrics].std(axis=0).values]
+            keys = [k.replace('_', ' ') for k in df[metrics].columns]
+            results_avg = {f"{key}": f"{mean:.3f} $\\pm$ {std:.3f}" for key, mean, std in
+                           zip(keys, df[metrics].mean(axis=0).values, std_values)}
+
+            if len(df) != 3:
+                print(f"Expected 3 values, but got {len(df)} for {name}")
+
+            # data_size = name.split("_")[0] + " words"
+            # name = "-".join(name.split("_")[1:])
+
+            item = {"model_name": name, "data size": data_size}
+            item.update(results_avg)
+            return item
 
         for model_name in results.model_name.unique():
             results_model = results[results.model_name == model_name].copy()
@@ -120,43 +94,45 @@ def summarize_results(args):
 
         results.sort_values(by=["data size", "model_name"], inplace=True)
 
-        print(avg_results.sort_values(by=["data size", "model_name"]).set_index(["data size", "model_name"]))
+        if metrics == metrics_base:
+            print(avg_results.sort_values(by=["data size", "model_name"]).set_index(["data size", "model_name"]))
+
+            results = results[["model_name", "data size"] + metrics]
+
+            results.rename(columns={"grammaticality_childes": "grammaticality\nchildes", "grammaticality_gec": "grammaticality\ngec"}, inplace=True)
+            results = results.melt(id_vars=["data size", "model_name"], var_name="metric")
+
+            plt.figure()
+            # g = sns.FacetGrid(results, col="metric", col_wrap=2, height=5)  # , ylim=(0, 10)
+            # g.map(sns.pointplot, "data size", "value", "model_name", errorbar="sd", linestyle="none",
+            #       dodge=.3)  # order=[1, 2, 3]
+            g = sns.catplot(x="metric", y="value", hue="model_name", data=results,
+                            row="data size", height=2, aspect=2.6, sharey=True,
+                            dodge=.2, kind="point", linestyle="none", linewidth=2, errorbar="sd")  # col_wrap=2,
+            # g.set_xticklabels(rotation=80)
+            g.set_titles("pretraining data size: {row_name}")
+            g.set_axis_labels("", "")
+            # plt.tight_layout()
+            plt.savefig("results.png", dpi=300)
+            plt.show()
+
+            # plt.figure()
+            # # g = sns.FacetGrid(results, col="metric", col_wrap=2, height=5)  # , ylim=(0, 10)
+            # # g.map(sns.pointplot, "data size", "value", "model_name", errorbar="sd", linestyle="none",
+            # #       dodge=.3)  # order=[1, 2, 3]
+            # g = sns.catplot(x="data size", y="value", hue="model_name", data=results,
+            #                 col="metric", col_wrap=2, height=3,
+            #                 dodge=.2, kind="point", linestyle="none", linewidth=2, errorbar="sd")
+            # # g.set_xticklabels(rotation=80)
+            # # plt.tight_layout()
+            # plt.savefig("results.png", dpi=300)
+            # plt.show()
 
 
-        results.rename(columns={"grammaticality_childes": "grammaticality\nchildes", "grammaticality_gec": "grammaticality\ngec"}, inplace=True)
+            plt.show()
+        else:
+            print(avg_results.sort_values(by=["data size", "model_name"]).set_index(["data size", "model_name"]).T.to_latex())
 
-
-        results = results.melt(id_vars=["data size", "model_name"], var_name="metric")
-
-
-        plt.figure()
-        # g = sns.FacetGrid(results, col="metric", col_wrap=2, height=5)  # , ylim=(0, 10)
-        # g.map(sns.pointplot, "data size", "value", "model_name", errorbar="sd", linestyle="none",
-        #       dodge=.3)  # order=[1, 2, 3]
-        g = sns.catplot(x="metric", y="value", hue="model_name", data=results,
-                        row="data size", height=2, aspect=2.6, sharey=True,
-                        dodge=.2, kind="point", linestyle="none", linewidth=2, errorbar="sd")  # col_wrap=2,
-        # g.set_xticklabels(rotation=80)
-        g.set_titles("pretraining data size: {row_name}")
-        g.set_axis_labels("", "")
-        # plt.tight_layout()
-        plt.savefig("results.png", dpi=300)
-        plt.show()
-
-        # plt.figure()
-        # # g = sns.FacetGrid(results, col="metric", col_wrap=2, height=5)  # , ylim=(0, 10)
-        # # g.map(sns.pointplot, "data size", "value", "model_name", errorbar="sd", linestyle="none",
-        # #       dodge=.3)  # order=[1, 2, 3]
-        # g = sns.catplot(x="data size", y="value", hue="model_name", data=results,
-        #                 col="metric", col_wrap=2, height=3,
-        #                 dodge=.2, kind="point", linestyle="none", linewidth=2, errorbar="sd")
-        # # g.set_xticklabels(rotation=80)
-        # # plt.tight_layout()
-        # plt.savefig("results.png", dpi=300)
-        # plt.show()
-
-
-        plt.show()
 
         print("\n\n")
 
