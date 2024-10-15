@@ -4,6 +4,7 @@ import math
 import torch
 import pandas as pd
 from matplotlib import pyplot as plt
+from tqdm import tqdm
 
 from eval import load_childes_grammar_model, compute_scores_childes_grammaticality
 from utilities import CONVERSATIONS_ANNOTATED_DATA_FILE
@@ -48,22 +49,24 @@ def main(args):
     pd.set_option('display.width', 1000)
     print(data.sample(50))
 
+    plt.figure()
     entries = []
-    for is_cr in [0, 1]:
-        data_filtered = data[data.is_cr == is_cr]
-        counts = data_filtered.is_grammatical.value_counts(normalize=True)
-        print(counts)
-        for is_cr, count in zip(counts.index, counts):
-            print(count)
-            grammaticality = "ungrammatical" if is_cr == -1 else "grammatical" if is_cr == 1 else "ambiguous"
-            entries.append({"is_cr": "clarification request" if is_cr else "other", "grammaticality": grammaticality, "proportion": count})
+    for transcript_file in tqdm(data.transcript_file.unique()):
+        data_transcript = data[data.transcript_file == transcript_file]
+        if len(data_transcript) > 100:
+            for is_cr in [0, 1]:
+                data_filtered = data_transcript[data_transcript.is_cr == is_cr]
+                counts = data_filtered.is_grammatical.value_counts(normalize=True)
+                for is_grammatical, count in zip(counts.index, counts):
+                    grammaticality = "ungrammatical" if is_grammatical == -1 else "grammatical" if is_grammatical == 1 else "ambiguous"
+                    entries.append({"is_cr": "clarification request" if is_cr else "other", "grammaticality": grammaticality, "proportion": count, "transcript_file": transcript_file})
 
     df = pd.DataFrame(entries)
     df.sort_values(by='is_cr', inplace=True)
     sns.set_palette("Set2")
-    fig = sns.barplot(df, x="grammaticality", y="proportion", hue="is_cr")
+    fig = sns.barplot(df, x="grammaticality", y="proportion", hue="is_cr", errorbar="ci")
     plt.xlabel("")
-    fig.legend_.set_title(None)
+    fig.legend_.set_title("")
     fig.get_figure().savefig("grammaticality.png", dpi=300)
 
     # plt.figure()
