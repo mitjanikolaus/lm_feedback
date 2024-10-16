@@ -22,7 +22,6 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 def load_data(data_path):
     data = pd.read_csv(data_path)
-    data = data[["utt_transcript_clean", "response_transcript_clean"]]
 
     data["utt_transcript_clean"] = data["utt_transcript_clean"].apply(preprocess_childes_utterance)
     data["response_transcript_clean"] = data["response_transcript_clean"].apply(preprocess_childes_utterance)

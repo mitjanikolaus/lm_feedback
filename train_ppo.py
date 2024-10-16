@@ -22,7 +22,8 @@ import torch.nn.functional as F
 from data import DEFAULT_MAX_LEN
 from eval import load_childes_grammar_model, load_gec_model, eval_grammaticality_produced_utts
 from train_lm import DEFAULT_EVAL_METRICS
-from utilities import CHILDES_LM_TRAIN_DATA_FILE, parse_babylm_metrics_results, CHILDES_LM_VAL_DATA_FILE
+from utilities import CHILDES_LM_TRAIN_DATA_FILE, parse_babylm_metrics_results, CHILDES_LM_VAL_DATA_FILE, PPO_CKPTS_DIR, \
+    CKPT_DIR_BEST_ZORRO, CKPT_DIR_BEST_BLIMP, CKPT_DIR_BEST_VAL_LOSS, CKPT_DIR_BEST_REWARD
 
 from transformers import AutoTokenizer, AutoModelForSequenceClassification, HfArgumentParser, PreTrainedTokenizerBase, \
     AutoModelForCausalLM
@@ -37,12 +38,6 @@ from lm_eval import evaluator
 
 tqdm.pandas()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-CKPT_DIR = "ckpts_ppo"
-CKPT_DIR_BEST_VAL_LOSS = "best_val_loss"
-CKPT_DIR_BEST_ZORRO = "best_zorro"
-CKPT_DIR_BEST_BLIMP = "best_blimp"
-CKPT_DIR_BEST_REWARD = "best_reward"
 
 PATIENCE_STEPS = 10
 
@@ -601,11 +596,11 @@ def eval_babylm(model, tokenizer, ckpt_dir, ppo_trainer, device, config, eval_ba
     if results['zorro_filtered_childes'] > ppo_trainer.best_zorro:
         ppo_trainer.best_zorro = results['zorro_filtered_childes']
         print(f"New best zorro: {results['zorro_filtered_childes']:.2f}, saving checkpoint")
-        save_checkpoint(os.path.join(CKPT_DIR, config.exp_name, CKPT_DIR_BEST_ZORRO), model, tokenizer)
+        save_checkpoint(os.path.join(PPO_CKPTS_DIR, config.exp_name, CKPT_DIR_BEST_ZORRO), model, tokenizer)
     if results['blimp_filtered_childes'] > ppo_trainer.best_blimp:
         ppo_trainer.best_blimp = results['blimp_filtered_childes']
         print(f"New best blimp: {results['blimp_filtered_childes']:.2f}, saving checkpoint")
-        save_checkpoint(os.path.join(CKPT_DIR, config.exp_name, CKPT_DIR_BEST_BLIMP), model, tokenizer)
+        save_checkpoint(os.path.join(PPO_CKPTS_DIR, config.exp_name, CKPT_DIR_BEST_BLIMP), model, tokenizer)
     return results
 
 
@@ -680,7 +675,7 @@ def eval_lm_loss(model, tokenizer, config, trainer, lm_val_dataloader, max_batch
     if val_loss < trainer.best_val_loss:
         trainer.best_val_loss = val_loss
         print(f"New best val loss: {val_loss:.4f}, saving checkpoint")
-        save_checkpoint(os.path.join(CKPT_DIR, config.exp_name, CKPT_DIR_BEST_VAL_LOSS), model, tokenizer)
+        save_checkpoint(os.path.join(PPO_CKPTS_DIR, config.exp_name, CKPT_DIR_BEST_VAL_LOSS), model, tokenizer)
 
 
 def save_checkpoint(dir, model, tokenizer):
@@ -696,7 +691,7 @@ def eval(model, tokenizer, config, trainer, ckpt_dir, final=False):
         childes_grammar_model, childes_grammar_model_tokenizer = load_childes_grammar_model(
             config.grammar_eval_model_path)
         gec_model, gec_model_tokenizer = load_gec_model()
-        model_path = os.path.join(CKPT_DIR, config.exp_name)
+        model_path = os.path.join(PPO_CKPTS_DIR, config.exp_name)
         scores_childes_grammar, scores_gec = eval_grammaticality_produced_utts(model, tokenizer, childes_grammar_model,
                                                                                childes_grammar_model_tokenizer,
                                                                                gec_model,
@@ -709,7 +704,8 @@ def eval(model, tokenizer, config, trainer, ckpt_dir, final=False):
         else:
             trainer.accelerator.log(results, step=step, log_kwargs={"commit": False})
 
-    results_babylm = eval_babylm(model, tokenizer, ckpt_dir=ckpt_dir, ppo_trainer=trainer, device=trainer.accelerator.device.index, config=config)
+    results_babylm = eval_babylm(model, tokenizer, ckpt_dir=ckpt_dir, ppo_trainer=trainer,
+                                 device=trainer.accelerator.device.index, config=config)
     all_results.update(results_babylm)
     return all_results
 
@@ -748,13 +744,13 @@ def compute_rewards(utterances, utt_lengths, utts_contain_eos, value_model, valu
 
 
 def final_eval(config, trainer):
-    model_path = os.path.join(CKPT_DIR, config.exp_name, CKPT_DIR_BEST_REWARD)
+    model_path = os.path.join(PPO_CKPTS_DIR, config.exp_name, CKPT_DIR_BEST_REWARD)
     print(f"Loading best model from {model_path}")
     model = AutoModelForCausalLM.from_pretrained(model_path).to(device)
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     model.eval()
     results = eval(model, tokenizer, config, trainer, ckpt_dir=model_path, final=True)
-    pickle.dump(results, open(os.path.join(CKPT_DIR, config.exp_name, CKPT_DIR_BEST_REWARD, "results.p"), "wb"))
+    pickle.dump(results, open(os.path.join(PPO_CKPTS_DIR, config.exp_name, CKPT_DIR_BEST_REWARD, "results.p"), "wb"))
 
 
 def main():
@@ -834,12 +830,12 @@ def main():
         epoch += 1
         for batch in tqdm(ppo_trainer.dataloader):
             if patience < 1:
-                print(f"\n\nNo reward improvement for {PATIENCE_STEPS*config.log_freq} steps, stopping training.")
+                print(f"\n\nNo reward improvement for {PATIENCE_STEPS * config.log_freq} steps, stopping training.")
                 final_eval(config, ppo_trainer)
                 return
 
             if (config.eval_freq != -1) and (step % config.eval_freq == 0):
-                ckpt_dir = os.path.join(CKPT_DIR, config.exp_name, f"epoch_{epoch}")
+                ckpt_dir = os.path.join(PPO_CKPTS_DIR, config.exp_name, f"epoch_{epoch}")
                 save_checkpoint(ckpt_dir, model, tokenizer)
                 eval(model, tokenizer, config, ppo_trainer, ckpt_dir)
 
@@ -862,8 +858,9 @@ def main():
                 if mean_reward > ppo_trainer.best_reward:
                     ppo_trainer.best_reward = mean_reward
                     patience = PATIENCE_STEPS
-                    print(f"New best mean reward at step {ppo_trainer.current_step}: {mean_reward:.4f}, saving checkpoint")
-                    ckpt_dir = os.path.join(CKPT_DIR, config.exp_name, CKPT_DIR_BEST_REWARD)
+                    print(
+                        f"New best mean reward at step {ppo_trainer.current_step}: {mean_reward:.4f}, saving checkpoint")
+                    ckpt_dir = os.path.join(PPO_CKPTS_DIR, config.exp_name, CKPT_DIR_BEST_REWARD)
                     save_checkpoint(ckpt_dir, model, tokenizer)
                 else:
                     patience -= 1
@@ -877,5 +874,5 @@ def main():
 
 
 if __name__ == "__main__":
-    os.makedirs(CKPT_DIR, exist_ok=True)
+    os.makedirs(PPO_CKPTS_DIR, exist_ok=True)
     main()
