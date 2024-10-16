@@ -68,7 +68,13 @@ def compute_scores_gec(utterances, gec_model, gec_model_tokenizer, max_length=DE
             skip_special_tokens=True,
             clean_up_tokenization_spaces=True
         )
-    scores = np.array([utt.lower().replace(",", "") == utt_corrected.lower().replace(",", "") for utt, utt_corrected in
+
+    def clean_utt(utt):
+        utt = utt.replace("?", "").replace("!", "").replace(".", "").replace(",", "")
+        utt = utt.lower()
+        return utt
+
+    scores = np.array([clean_utt(utt) == clean_utt(utt_corrected) for utt, utt_corrected in
                        zip(utterances, corrected_sentences)]).astype(int)
     return scores
 
@@ -207,7 +213,8 @@ def eval_models(args):
     all_results = pd.DataFrame(all_results)
     all_results.set_index("model", inplace=True)
     all_results.to_csv("results.csv", index=True, index_label="model")
-    print(all_results[["zorro_filtered_childes", "blimp_filtered_childes", "grammaticality_childes", "grammaticality_gec"]])
+    print(all_results[
+              ["zorro_filtered_childes", "blimp_filtered_childes", "grammaticality_childes", "grammaticality_gec"]])
 
     print(f"\n\nskipped: {skipped}")
 
