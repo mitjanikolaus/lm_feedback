@@ -26,7 +26,10 @@ def summarize_results(args):
     for file in results_files:
         data = pickle.load(open(file, "rb"))
         model = os.path.dirname(file)
-        results.loc[model] = data
+        if model in results.index:
+            print(f"skipping {model} as it is already in the results data")
+        else:
+            results.loc[model] = data
 
     metrics_base = ["zorro", "blimp", "grammaticality_childes", "grammaticality_gec"]
 
@@ -153,8 +156,6 @@ def summarize_results(args):
             # plt.savefig("results.png", dpi=300)
             # plt.show()
 
-
-            plt.show()
         else:
             print(avg_results.sort_values(by=["data size", "model_name"]).set_index(["data size", "model_name"]).T.to_latex())
 
@@ -165,7 +166,7 @@ def summarize_results(args):
 def get_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--results_file", type=str, default="results_baselines.csv")
+    parser.add_argument("--results_file", type=str, default="results.csv")
 
     return parser.parse_args()
 
