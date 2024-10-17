@@ -86,8 +86,8 @@ def compute_scores(batch, childes_grammar_model, childes_grammar_model_tokenizer
     utt_lengths = [(utt != torch.tensor(tokenizer.pad_token_id)).sum() - 1 for utt in batch["utts"]]
     utterances = [utt for utt, utt_len in zip(utterances, utt_lengths) if utt_len > DEFAULT_MIN_GENERATION_LEN]
 
-    # utts_finished = [tokenizer.eos_token_id in utt for utt in batch["utts"]]
-    # utterances = [utt for utt, utt_finished in zip(utterances, utts_finished) if utt_finished]
+    utts_finished = [tokenizer.eos_token_id in utt for utt in batch["utts"]]
+    utterances = [utt for utt, utt_finished in zip(utterances, utts_finished) if utt_finished]
 
     if len(utterances) == 0:
         return [], []
