@@ -71,6 +71,7 @@ def compute_scores_gec(utterances, gec_model, gec_model_tokenizer, max_length=DE
 
     def clean_utt(utt):
         utt = utt.replace("?", "").replace("!", "").replace(".", "").replace(",", "")
+        utt = utt.replace("\"", "").replace("'", "")
         utt = utt.lower()
         return utt
 
