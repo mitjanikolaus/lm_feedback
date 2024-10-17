@@ -21,18 +21,42 @@ def summarize_results(args):
 
     results = pd.read_csv(args.results_file, index_col=0)
 
+    def clean_model_name(name):
+        if name.startswith("lightning_logs/dkwnlvzm") or name.startswith(
+                "lightning_logs/95f8k8zc") or name.startswith("lightning_logs/967ufsfk"):
+            return '1e5-baseline'
+        if name.startswith("lightning_logs/lb86b69m") or name.startswith(
+                "lightning_logs/he3nnzld") or name.startswith("lightning_logs/5z07yaqp"):
+            return '1e6-baseline'
+        if name.startswith("lightning_logs/qpp61q7x") or name.startswith(
+                "lightning_logs/m6s9vokb") or name.startswith("lightning_logs/uu5rtja8"):
+            return '1e7-baseline'
+
+        name = name.replace("ckpts_ppo/", "").replace("/best_reward/", "").replace("/best_reward", "").replace("_", "-")
+        return "-".join(name.split("-")).replace("seed-1-", "").replace("seed-2-", "").replace("seed-3-", "")
+
+    results["model_name"] = results.index.map(clean_model_name)
+
     results_files: list[str] = list(glob.glob(os.path.join(PPO_CKPTS_DIR, '*', CKPT_DIR_BEST_REWARD, "results.p")))
 
     for file in results_files:
         data = pickle.load(open(file, "rb"))
-        model = os.path.dirname(file)
-        if model in results.index:
-            print(f"skipping {model} as it is already in the results data")
+        key = os.path.dirname(file)
+        data['model_name'] = clean_model_name(key)
+        if data['model_name'] in results.model_name.values:
+            print(f"skipping {data['model_name']} as it is already in the results data")
         else:
-            results.loc[model] = data
+            results.loc[key] = data
+
+    results["data size"] = results.model_name.map(lambda x: x.split("-")[0] + " words")
+    results["model_name"] = results.model_name.map(lambda x: "-".join(x.split("-")[1:]))
+    results.rename(columns=lambda x: x.replace("_filtered_childes", "").replace("phenomena", ""), inplace=True)
+
+    results.replace({"entropy-001-lm-loss-001": "finetuned"}, inplace=True)
+    filter_models = ["baseline", "finetuned"]
+    results = results[results.model_name.isin(filter_models)]
 
     metrics_base = ["zorro", "blimp", "grammaticality_childes", "grammaticality_gec"]
-
     metrics_detailed = [c.replace("_filtered_childes", "").replace("phenomena", "") for c in results.columns if
                         c.startswith("zorro_filtered_childes_phenomena/") or c.startswith(
                             "blimp_filtered_childes_phenomena/")]
@@ -41,34 +65,6 @@ def summarize_results(args):
 
     for metrics in [metrics_detailed, metrics_base]:  # metrics_detailed
         avg_results = []
-
-        results.loc[~results.index.str.startswith("lightning_logs/"), "model_name"] = results.loc[
-            ~results.index.str.startswith("lightning_logs/")].index.map(
-            lambda x: x.replace("ckpts_ppo/", "").replace("/best_reward/", "").replace(
-                "/best_reward", "").replace("_", "-"))
-
-        results.loc[results.index.str.startswith("lightning_logs/dkwnlvzm") | results.index.str.startswith(
-            "lightning_logs/95f8k8zc") | results.index.str.startswith(
-            "lightning_logs/967ufsfk"), 'model_name'] = '1e5-baseline'
-
-        results.loc[results.index.str.startswith("lightning_logs/lb86b69m") | results.index.str.startswith(
-            "lightning_logs/he3nnzld") | results.index.str.startswith(
-            "lightning_logs/5z07yaqp"), 'model_name'] = '1e6-baseline'
-
-        results.loc[
-            results.index.str.startswith("lightning_logs/qpp61q7x") | results.index.str.startswith(
-                "lightning_logs/m6s9vokb") | results.index.str.startswith(
-                "lightning_logs/uu5rtja8"), 'model_name'] = '1e7-baseline'
-
-        results["data size"] = results.model_name.map(lambda x: x.split("-")[0] + " words")
-        results["model_name"] = results.model_name.map(
-            lambda x: "-".join(x.split("-")[1:]).replace("seed-1-", "").replace("seed-2-", "").replace("seed-3-", ""))
-
-        results.rename(columns=lambda x: x.replace("_filtered_childes", "").replace("phenomena", ""), inplace=True)
-
-        results.replace({"entropy-001-lm-loss-001": "finetuned"}, inplace=True)
-        filter_models = ["baseline", "finetuned"]
-        results = results[results.model_name.isin(filter_models)]
 
         def create_avg_entry(df, name, data_size, metrics):
             std_values = [std if not np.isnan(std) else 0 for std in df[metrics].std(axis=0).values]
@@ -99,12 +95,12 @@ def summarize_results(args):
 
         if metrics == metrics_base:
             print(avg_results.sort_values(by=["data size", "model_name"]).set_index(["data size", "model_name"]))
+            print(avg_results.sort_values(by=["data size", "model_name"]).set_index(["data size", "model_name"]).to_latex())
 
             results = results[["model_name", "data size"] + metrics]
 
             # results.rename(columns={"grammaticality_childes": "grammaticality\nchildes", "grammaticality_gec": "grammaticality\ngec"}, inplace=True)
             results = results.melt(id_vars=["data size", "model_name"], var_name="metric")
-
 
             plt.figure()
             # g = sns.FacetGrid(results, col="metric", col_wrap=2, height=5)  # , ylim=(0, 10)
@@ -122,7 +118,6 @@ def summarize_results(args):
             # sns.move_legend(g, "center right", bbox_to_anchor=(0.95, 0.55))
             plt.savefig("results.png", dpi=300)
             plt.show()
-
 
             # plt.figure()
             # # g = sns.FacetGrid(results, col="metric", col_wrap=2, height=5)  # , ylim=(0, 10)
@@ -143,7 +138,6 @@ def summarize_results(args):
             # plt.savefig("results_alt.png", dpi=300)
             # plt.show()
 
-
             # plt.figure()
             # # g = sns.FacetGrid(results, col="metric", col_wrap=2, height=5)  # , ylim=(0, 10)
             # # g.map(sns.pointplot, "data size", "value", "model_name", errorbar="sd", linestyle="none",
@@ -157,10 +151,13 @@ def summarize_results(args):
             # plt.show()
 
         else:
-            print(avg_results.sort_values(by=["data size", "model_name"]).set_index(["data size", "model_name"]).T.to_latex())
-
+            print(avg_results.sort_values(by=["data size", "model_name"]).set_index(
+                ["data size", "model_name"]).T.to_latex())
 
         print("\n\n")
+
+        # print(pd.read_csv("sample_utts_baseline.csv", index_col=0).sort_values(
+        #     by="score_childes_grammaticality").to_latex(index=False))
 
 
 def get_args():
