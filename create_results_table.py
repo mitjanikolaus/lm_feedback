@@ -2,12 +2,12 @@ import argparse
 import glob
 import os
 import pickle
-import re
 
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from matplotlib import pyplot as plt
+from scipy.stats import ttest_ind
 
 from utilities import PPO_CKPTS_DIR, CKPT_DIR_BEST_REWARD
 
@@ -50,16 +50,16 @@ def summarize_results(args):
 
     results["data size"] = results.model_name.map(lambda x: x.split("-")[0] + " words")
     results["model_name"] = results.model_name.map(lambda x: "-".join(x.split("-")[1:]))
-    results.rename(columns=lambda x: x.replace("_filtered_childes", "").replace("phenomena", ""), inplace=True)
+    results.rename(columns=lambda x: x.replace("_filtered_childes", ""), inplace=True)
 
     results.replace({"entropy-001-lm-loss-001": "finetuned"}, inplace=True)
     filter_models = ["baseline", "finetuned"]
     results = results[results.model_name.isin(filter_models)]
 
     metrics_base = ["zorro", "blimp", "grammaticality_childes", "grammaticality_gec"]
-    metrics_detailed = [c.replace("_filtered_childes", "").replace("phenomena", "") for c in results.columns if
-                        c.startswith("zorro_filtered_childes_phenomena/") or c.startswith(
-                            "blimp_filtered_childes_phenomena/")]
+    metrics_detailed = [c.replace("_phenomena", "") for c in results.columns if c.startswith("zorro_phenomena/") or c.startswith("blimp_phenomena/")]
+    results.rename(columns=lambda x: x.replace("_phenomena", ""), inplace=True)
+
     # metrics_detailed = [c for c in results.columns if
     #            c.startswith("zorro_filtered_childes/") or c.startswith("blimp_filtered_childes/")]
 
@@ -95,20 +95,41 @@ def summarize_results(args):
 
         if metrics == metrics_base:
             print(avg_results.sort_values(by=["data size", "model_name"]).set_index(["data size", "model_name"]))
-            print(avg_results.sort_values(by=["data size", "model_name"]).set_index(["data size", "model_name"]).to_latex())
+            print(avg_results.sort_values(by=["data size", "model_name"]).set_index(
+                ["data size", "model_name"]).to_latex())
 
             results = results[["model_name", "data size"] + metrics]
 
             # results.rename(columns={"grammaticality_childes": "grammaticality\nchildes", "grammaticality_gec": "grammaticality\ngec"}, inplace=True)
-            results = results.melt(id_vars=["data size", "model_name"], var_name="metric")
+            results_melted = results.melt(id_vars=["data size", "model_name"], var_name="metric")
 
             plt.figure()
             # g = sns.FacetGrid(results, col="metric", col_wrap=2, height=5)  # , ylim=(0, 10)
             # g.map(sns.pointplot, "data size", "value", "model_name", errorbar="sd", linestyle="none",
             #       dodge=.3)  # order=[1, 2, 3]
-            g = sns.catplot(x="data size", y="value", hue="model_name", data=results,
+            g = sns.catplot(x="data size", y="value", hue="model_name", data=results_melted,
                             col="metric", col_wrap=2, height=2.5, aspect=2, sharey=True,
                             kind="point", linewidth=1.5, errorbar="sd")
+
+            print("t-tests:")
+            for data_size_idx, data_size in enumerate(avg_results["data size"].unique()):
+                print(data_size)
+                for metric in metrics:
+                    baseline_scores = \
+                    results[(results["data size"] == data_size) & (results["model_name"] == "baseline")][metric].values
+                    finetuned_scores = \
+                    results[(results["data size"] == data_size) & (results["model_name"] == "finetuned")][metric].values
+                    p_value = ttest_ind(baseline_scores, finetuned_scores).pvalue
+                    print(f"{metric}: {p_value:5f}")
+
+                    max_value = np.max(np.concatenate((finetuned_scores, baseline_scores)))
+                    if p_value < 0.001:
+                        g.axes_dict[metric].text(data_size_idx, max_value + 0.07, '***', ha='center')
+                    elif p_value < 0.01:
+                        g.axes_dict[metric].text(data_size_idx, max_value + 0.07, '**', ha='center')
+                    elif p_value < 0.05:
+                        g.axes_dict[metric].text(data_size_idx, max_value + 0.07, '*', ha='center')
+
             g.set_titles("{col_name}")
             g.set_axis_labels("Pretrainining data size", "")
             g.set(ylim=(0, 1))
