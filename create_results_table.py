@@ -69,7 +69,7 @@ def summarize_results(args):
         def create_avg_entry(df, name, data_size, metrics):
             std_values = [std if not np.isnan(std) else 0 for std in df[metrics].std(axis=0).values]
             keys = [k.replace('_', ' ') for k in df[metrics].columns]
-            results_avg = {f"{key}": f"{mean:.3f} $\\pm$ {std:.3f}" for key, mean, std in
+            results_avg = {f"{key}": f"{mean:.2f} $\\pm$ {std:.2f}" for key, mean, std in
                            zip(keys, df[metrics].mean(axis=0).values, std_values)}
 
             if len(df) != 3:
