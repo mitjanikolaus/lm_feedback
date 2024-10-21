@@ -15,7 +15,7 @@ python train_cf_classifier.py --data_path data/CR_manual_annotations.csv --targe
 
 ## Train reward model
 ```
-python train_ppo_reward_model.py --model_name_or_path microsoft/deberta-v3-xsmall --output_dir reward_modeling_test --run_name test
+python train_ppo_reward_model.py --model_name_or_path microsoft/deberta-v3-xsmall --output_dir reward_modeling_test --reward_other 1
 ```
 
 
