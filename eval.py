@@ -45,7 +45,10 @@ def compute_scores_childes_grammaticality(utterances, value_model, value_model_t
 
     logits = value_model_outputs["logits"]
     scores = torch.argmax(logits, dim=1)
+
+    # Map output scores to from to -1=ungrammatical; 0=ambiguous; 1=grammatical
     scores = scores - 1
+
     return scores.cpu().numpy()
 
 
