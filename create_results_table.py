@@ -53,7 +53,8 @@ def summarize_results(args):
     results.rename(columns=lambda x: x.replace("_filtered_childes", ""), inplace=True)
 
     results.replace({"entropy-001-lm-loss-001": "finetuned"}, inplace=True)
-    filter_models = ["baseline", "finetuned"]
+    results.replace({"reward-zorro-entropy-001-lm-loss-001": "topline"}, inplace=True)
+    filter_models = ["baseline", "finetuned", "topline"]
     results = results[results.model_name.isin(filter_models)]
 
     metrics_base = ["zorro", "blimp", "grammaticality_childes", "grammaticality_gec"]
