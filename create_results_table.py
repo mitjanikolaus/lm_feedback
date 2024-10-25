@@ -43,7 +43,7 @@ def summarize_results(args):
         data = pickle.load(open(file, "rb"))
         key = os.path.dirname(file)
         data['model_name'] = clean_model_name(key)
-        if data['model_name'] in results.model_name.values:
+        if key in results.index:
             print(f"skipping {data['model_name']} as it is already in the results data")
         else:
             results.loc[key] = data
