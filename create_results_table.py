@@ -55,7 +55,7 @@ def summarize_results(args):
     results.replace({"entropy-001-lm-loss-001": "finetuned"}, inplace=True)
     results.replace({"reward-zorro-entropy-001-lm-loss-001": "topline_zorro"}, inplace=True)
     results.replace({"reward-topline-entropy-001-lm-loss-001": "topline"}, inplace=True)
-    filter_models = ["baseline", "finetuned", "topline"]
+    filter_models = ["baseline", "finetuned", "topline", "topline_zorro"]
     results = results[results.model_name.isin(filter_models)]
 
     metrics_base = ["zorro", "blimp", "grammaticality_childes", "grammaticality_gec"]
