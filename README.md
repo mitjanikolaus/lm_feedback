@@ -15,7 +15,12 @@ python train_cf_classifier.py --data_path data/CR_manual_annotations.csv --targe
 
 ## Train reward model
 ```
-python train_ppo_reward_model.py --model_name_or_path microsoft/deberta-v3-xsmall --output_dir reward_modeling_test --reward_other 1
+python train_ppo_reward_model.py --model_name_or_path microsoft/deberta-v3-xsmall --output_dir reward_modeling_test
+```
+
+### Train topline reward model
+```
+python train_ppo_reward_model.py --model_name_or_path microsoft/deberta-v3-xsmall --output_dir reward_model_topline --data_paths ~/data/babylm_data/evaluation_data/blimp_filtered_childes/ ~/data/babylm_data/evaluation_data/zorro_filtered_childes/
 ```
 
 
