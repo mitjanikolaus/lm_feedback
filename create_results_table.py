@@ -48,7 +48,7 @@ def summarize_results(args):
         else:
             results.loc[key] = data
 
-    results["data size"] = results.model_name.map(lambda x: x.split("-")[0] + " words")
+    results["data_size"] = results.model_name.map(lambda x: x.split("-")[0] + " words")
     results["model_name"] = results.model_name.map(lambda x: "-".join(x.split("-")[1:]))
     results.rename(columns=lambda x: x.replace("_filtered_childes", ""), inplace=True)
 
@@ -80,47 +80,48 @@ def summarize_results(args):
             # data_size = name.split("_")[0] + " words"
             # name = "-".join(name.split("_")[1:])
 
-            item = {"model_name": name, "data size": data_size}
+            item = {"model_name": name, "data_size": data_size}
             item.update(results_avg)
             return item
 
         for model_name in results.model_name.unique():
             results_model = results[results.model_name == model_name].copy()
-            for data_size in results_model["data size"].unique():
-                results_model_ds = results_model[results_model["data size"] == data_size].copy()
+            for data_size in results_model["data_size"].unique():
+                results_model_ds = results_model[results_model["data_size"] == data_size].copy()
                 item = create_avg_entry(results_model_ds, model_name, data_size, metrics)
                 avg_results.append(item)
 
         avg_results = pd.DataFrame(avg_results)
 
-        results.sort_values(by=["data size", "model_name"], inplace=True)
+        results.sort_values(by=["data_size", "model_name"], inplace=True)
 
         if metrics == metrics_base:
-            print(avg_results.sort_values(by=["data size", "model_name"]).set_index(["data size", "model_name"]))
-            print(avg_results.sort_values(by=["data size", "model_name"]).set_index(
-                ["data size", "model_name"]).to_latex())
+            print(avg_results.sort_values(by=["data_size", "model_name"]).set_index(["data_size", "model_name"]))
+            print(avg_results.sort_values(by=["data_size", "model_name"]).set_index(
+                ["data_size", "model_name"]).to_latex())
 
-            results = results[["model_name", "data size"] + metrics]
+            results = results[["model_name", "data_size"] + metrics]
 
             # results.rename(columns={"grammaticality_childes": "grammaticality\nchildes", "grammaticality_gec": "grammaticality\ngec"}, inplace=True)
-            results_melted = results.melt(id_vars=["data size", "model_name"], var_name="metric")
+            results = results[results.model_name.isin([args.plot_comparison_model_1, args.plot_comparison_model_2])].copy()
+            results_melted = results.melt(id_vars=["data_size", "model_name"], var_name="metric")
 
             plt.figure()
             # g = sns.FacetGrid(results, col="metric", col_wrap=2, height=5)  # , ylim=(0, 10)
-            # g.map(sns.pointplot, "data size", "value", "model_name", errorbar="sd", linestyle="none",
+            # g.map(sns.pointplot, "data_size", "value", "model_name", errorbar="sd", linestyle="none",
             #       dodge=.3)  # order=[1, 2, 3]
-            g = sns.catplot(x="data size", y="value", hue="model_name", data=results_melted,
+            g = sns.catplot(x="data_size", y="value", hue="model_name", data=results_melted,
                             col="metric", col_wrap=2, height=2.5, aspect=2, sharey=True,
                             kind="point", linewidth=1.5, errorbar="sd")
 
             print("t-tests:")
-            for data_size_idx, data_size in enumerate(avg_results["data size"].unique()):
+            for data_size_idx, data_size in enumerate(avg_results["data_size"].unique()):
                 print(data_size)
                 for metric in metrics:
                     baseline_scores = \
-                    results[(results["data size"] == data_size) & (results["model_name"] == "baseline")][metric].values
+                    results[(results["data_size"] == data_size) & (results["model_name"] == args.plot_comparison_model_1)][metric].values
                     finetuned_scores = \
-                    results[(results["data size"] == data_size) & (results["model_name"] == "finetuned")][metric].values
+                    results[(results["data_size"] == data_size) & (results["model_name"] == args.plot_comparison_model_2)][metric].values
                     p_value = ttest_ind(baseline_scores, finetuned_scores).pvalue
                     print(f"{metric}: {p_value:5f}")
 
@@ -133,7 +134,7 @@ def summarize_results(args):
                         g.axes_dict[metric].text(data_size_idx, max_value + 0.07, '*', ha='center')
 
             g.set_titles("{col_name}")
-            g.set_axis_labels("Pretrainining data size", "")
+            g.set_axis_labels("Pretrainining data_size", "")
             g.set(ylim=(0, 1))
             g._legend.remove()
             g.axes[-1].legend(loc='upper left', ncol=3, title="", bbox_to_anchor=(-0.3, 2.5))
@@ -144,9 +145,9 @@ def summarize_results(args):
 
             # plt.figure()
             # # g = sns.FacetGrid(results, col="metric", col_wrap=2, height=5)  # , ylim=(0, 10)
-            # # g.map(sns.pointplot, "data size", "value", "model_name", errorbar="sd", linestyle="none",
+            # # g.map(sns.pointplot, "data_size", "value", "model_name", errorbar="sd", linestyle="none",
             # #       dodge=.3)  # order=[1, 2, 3]
-            # g = sns.catplot(x="model_name", y="value", hue="data size", data=results,
+            # g = sns.catplot(x="model_name", y="value", hue="data_size", data=results,
             #                 col="metric", col_wrap=2, height=2.5, aspect=2, sharey=True,
             #                 kind="point", linewidth=1.5, errorbar="sd")
             # g.set_titles("{col_name}")
@@ -155,7 +156,7 @@ def summarize_results(args):
             #
             # g.set(ylim=(0, 1))
             # g._legend.remove()
-            # g.axes[-1].legend(loc='upper left', ncol=3, title="Pretraining data size", bbox_to_anchor=(-0.55, 2.8))
+            # g.axes[-1].legend(loc='upper left', ncol=3, title="Pretraining data_size", bbox_to_anchor=(-0.55, 2.8))
             # plt.subplots_adjust(left=0.1, right=0.9, top=0.8, bottom=0.1)
             # # sns.move_legend(g, "center right", bbox_to_anchor=(0.95, 0.55))
             # plt.savefig("results_alt.png", dpi=300)
@@ -163,9 +164,9 @@ def summarize_results(args):
 
             # plt.figure()
             # # g = sns.FacetGrid(results, col="metric", col_wrap=2, height=5)  # , ylim=(0, 10)
-            # # g.map(sns.pointplot, "data size", "value", "model_name", errorbar="sd", linestyle="none",
+            # # g.map(sns.pointplot, "data_size", "value", "model_name", errorbar="sd", linestyle="none",
             # #       dodge=.3)  # order=[1, 2, 3]
-            # g = sns.catplot(x="data size", y="value", hue="model_name", data=results,
+            # g = sns.catplot(x="data_size", y="value", hue="model_name", data=results,
             #                 col="metric", col_wrap=2, height=3,
             #                 dodge=.2, kind="point", linestyle="none", linewidth=2, errorbar="sd")
             # # g.set_xticklabels(rotation=80)
@@ -174,8 +175,8 @@ def summarize_results(args):
             # plt.show()
 
         else:
-            print(avg_results.sort_values(by=["data size", "model_name"]).set_index(
-                ["data size", "model_name"]).T.to_latex())
+            print(avg_results.sort_values(by=["data_size", "model_name"]).set_index(
+                ["data_size", "model_name"]).T.to_latex())
 
         print("\n\n")
 
@@ -187,6 +188,9 @@ def get_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--results_file", type=str, default="results.csv")
+
+    parser.add_argument("--plot_comparison_model_1", type=str, default="baseline")
+    parser.add_argument("--plot_comparison_model_2", type=str, default="finetuned")
 
     return parser.parse_args()
 
