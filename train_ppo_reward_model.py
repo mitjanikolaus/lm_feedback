@@ -297,7 +297,7 @@ class CFRewardTrainerConfig(RewardConfig):
 
     reward_cr: float = 0
     reward_ack: float = 1
-    reward_other: float = 0.5
+    reward_other: float = 1
 
 
 def main():
