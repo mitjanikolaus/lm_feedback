@@ -126,12 +126,13 @@ def summarize_results(args):
                     print(f"{metric}: {p_value:5f}")
 
                     max_value = np.max(np.concatenate((finetuned_scores, baseline_scores)))
+                    offset = 0.01
                     if p_value < 0.001:
-                        g.axes_dict[metric].text(data_size_idx, max_value + 0.07, '***', ha='center')
+                        g.axes_dict[metric].text(data_size_idx, max_value + offset, '***', ha='center')
                     elif p_value < 0.01:
-                        g.axes_dict[metric].text(data_size_idx, max_value + 0.07, '**', ha='center')
+                        g.axes_dict[metric].text(data_size_idx, max_value + offset, '**', ha='center')
                     elif p_value < 0.05:
-                        g.axes_dict[metric].text(data_size_idx, max_value + 0.07, '*', ha='center')
+                        g.axes_dict[metric].text(data_size_idx, max_value + offset, '*', ha='center')
 
             g.set_titles("{col_name}")
             g.set_axis_labels("Pretrainining data_size", "")
