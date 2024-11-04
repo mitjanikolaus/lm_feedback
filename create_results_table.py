@@ -56,8 +56,10 @@ def summarize_results(args):
     results.replace({"reward-topline-entropy-001-lm-loss-001": "topline"}, inplace=True)
     results.replace({"reward-topline-entropy-001-lm-loss-001-target-4": "topline_target_4"}, inplace=True)
     results.replace({"reward-topline-entropy-001-lm-loss-001-target-6": "topline_target_6"}, inplace=True)
+    results.replace({"reward-topline-entropy-001-lm-loss-001-target-8": "topline_target_8"}, inplace=True)
+    results.replace({"reward-topline-entropy-001-lm-loss-001-target-10": "topline_target_10"}, inplace=True)
 
-    filter_models = ["baseline", "finetuned", "topline", "topline_target_4", "topline_target_6"]
+    filter_models = ["baseline", "finetuned", "topline", "topline_target_4", "topline_target_6", "topline_target_8", "topline_target_10"]
     results = results[results.model_name.isin(filter_models)]
 
     metrics_base = ["zorro", "blimp", "grammaticality_childes", "grammaticality_gec"]
