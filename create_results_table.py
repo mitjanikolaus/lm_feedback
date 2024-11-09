@@ -54,12 +54,8 @@ def summarize_results(args):
 
     results.replace({"entropy-001-lm-loss-001": "finetuned"}, inplace=True)
     results.replace({"reward-topline-entropy-001-lm-loss-001": "topline"}, inplace=True)
-    results.replace({"reward-topline-entropy-001-lm-loss-001-target-4": "topline_target_4"}, inplace=True)
-    results.replace({"reward-topline-entropy-001-lm-loss-001-target-6": "topline_target_6"}, inplace=True)
-    results.replace({"reward-topline-entropy-001-lm-loss-001-target-8": "topline_target_8"}, inplace=True)
-    results.replace({"reward-topline-entropy-001-lm-loss-001-target-10": "topline_target_10"}, inplace=True)
 
-    filter_models = ["baseline", "finetuned", "topline", "topline_target_4", "topline_target_6", "topline_target_8", "topline_target_10"]
+    filter_models = ["baseline", "finetuned", "topline"]
     results = results[results.model_name.isin(filter_models)]
 
     metrics_base = ["zorro", "blimp", "grammaticality_childes", "grammaticality_gec"]
@@ -115,7 +111,8 @@ def summarize_results(args):
             # g.map(sns.pointplot, "data_size", "value", "model_name", errorbar="sd", linestyle="none",
             #       dodge=.3)  # order=[1, 2, 3]
             g = sns.catplot(x="data_size", y="value", hue="model_name", data=results_melted,
-                            col="metric", col_wrap=2, height=2.5, aspect=2, sharey=True,
+                            col="metric", col_order=["grammaticality_childes", "grammaticality_gec", "zorro", "blimp"],
+                            col_wrap=2, height=2.5, aspect=2, sharey=True,
                             kind="point", linewidth=1.5, errorbar="sd")
 
             print("t-tests:")
