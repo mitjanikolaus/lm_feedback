@@ -102,7 +102,7 @@ def summarize_results(args):
 
             results = results[["model_name", "data_size"] + metrics]
 
-            # results.rename(columns={"grammaticality_childes": "grammaticality\nchildes", "grammaticality_gec": "grammaticality\ngec"}, inplace=True)
+            results.rename(columns={"grammaticality_childes": "grammaticality", "grammaticality_gec": "grammaticality (error correction)"}, inplace=True)
             results = results[results.model_name.isin([args.plot_comparison_model_1, args.plot_comparison_model_2])].copy()
             results_melted = results.melt(id_vars=["data_size", "model_name"], var_name="metric")
 
@@ -111,7 +111,7 @@ def summarize_results(args):
             # g.map(sns.pointplot, "data_size", "value", "model_name", errorbar="sd", linestyle="none",
             #       dodge=.3)  # order=[1, 2, 3]
             g = sns.catplot(x="data_size", y="value", hue="model_name", data=results_melted,
-                            col="metric", col_order=["grammaticality_childes", "grammaticality_gec", "zorro", "blimp"],
+                            col="metric", col_order=["grammaticality", "grammaticality (error correction)", "zorro", "blimp"],
                             col_wrap=2, height=2.5, aspect=2, sharey=True,
                             kind="point", linewidth=1.5, errorbar="sd")
 
