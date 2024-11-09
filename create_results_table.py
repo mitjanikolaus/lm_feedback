@@ -58,9 +58,12 @@ def summarize_results(args):
     filter_models = ["baseline", "finetuned", "topline"]
     results = results[results.model_name.isin(filter_models)]
 
-    metrics_base = ["zorro", "blimp", "grammaticality_childes", "grammaticality_gec"]
+    metrics_base = ["zorro", "blimp", "grammaticality", "grammaticality (error correction)"]
     metrics_detailed = [c.replace("_phenomena", "") for c in results.columns if c.startswith("zorro_phenomena/") or c.startswith("blimp_phenomena/")]
     results.rename(columns=lambda x: x.replace("_phenomena", ""), inplace=True)
+    results.rename(
+        columns={"grammaticality_childes": "grammaticality", "grammaticality_gec": "grammaticality (error correction)"},
+        inplace=True)
 
     # metrics_detailed = [c for c in results.columns if
     #            c.startswith("zorro_filtered_childes/") or c.startswith("blimp_filtered_childes/")]
@@ -102,7 +105,6 @@ def summarize_results(args):
 
             results = results[["model_name", "data_size"] + metrics]
 
-            results.rename(columns={"grammaticality_childes": "grammaticality", "grammaticality_gec": "grammaticality (error correction)"}, inplace=True)
             results = results[results.model_name.isin([args.plot_comparison_model_1, args.plot_comparison_model_2])].copy()
             results_melted = results.melt(id_vars=["data_size", "model_name"], var_name="metric")
 
