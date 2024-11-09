@@ -141,7 +141,7 @@ def summarize_results(args):
             g.set_axis_labels("Pretrainining data_size", "")
             g.set(ylim=(0, 1))
             g._legend.remove()
-            g.axes[-1].legend(loc='upper left', ncol=3, title="", bbox_to_anchor=(-0.3, 2.5))
+            g.axes[-1].legend(loc='upper left', ncol=3, title="", bbox_to_anchor=(-0.3, 2.6))
             plt.subplots_adjust(left=0.1, right=0.9, top=0.8, bottom=0.1)
             # sns.move_legend(g, "center right", bbox_to_anchor=(0.95, 0.55))
             plt.savefig("results.png", dpi=300)
