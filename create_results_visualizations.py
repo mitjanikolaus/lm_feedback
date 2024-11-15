@@ -54,17 +54,16 @@ def summarize_results(args):
 
     results.replace({"entropy-001-lm-loss-001": "finetuned"}, inplace=True)
     results.replace({"reward-topline-entropy-001-lm-loss-001": "topline"}, inplace=True)
-    results.replace({"reward-topline-entropy-001-lm-loss-001-target-4": "topline_target_4"}, inplace=True)
-    results.replace({"reward-topline-entropy-001-lm-loss-001-target-6": "topline_target_6"}, inplace=True)
-    results.replace({"reward-topline-entropy-001-lm-loss-001-target-8": "topline_target_8"}, inplace=True)
-    results.replace({"reward-topline-entropy-001-lm-loss-001-target-10": "topline_target_10"}, inplace=True)
 
-    filter_models = ["baseline", "finetuned", "topline", "topline_target_4", "topline_target_6", "topline_target_8", "topline_target_10"]
+    filter_models = ["baseline", "finetuned", "topline"]
     results = results[results.model_name.isin(filter_models)]
 
-    metrics_base = ["zorro", "blimp", "grammaticality_childes", "grammaticality_gec"]
+    metrics_base = ["zorro", "blimp", "grammaticality", "grammaticality (error correction)"]
     metrics_detailed = [c.replace("_phenomena", "") for c in results.columns if c.startswith("zorro_phenomena/") or c.startswith("blimp_phenomena/")]
     results.rename(columns=lambda x: x.replace("_phenomena", ""), inplace=True)
+    results.rename(
+        columns={"grammaticality_childes": "grammaticality", "grammaticality_gec": "grammaticality (error correction)"},
+        inplace=True)
 
     # metrics_detailed = [c for c in results.columns if
     #            c.startswith("zorro_filtered_childes/") or c.startswith("blimp_filtered_childes/")]
@@ -106,7 +105,6 @@ def summarize_results(args):
 
             results = results[["model_name", "data_size"] + metrics]
 
-            # results.rename(columns={"grammaticality_childes": "grammaticality\nchildes", "grammaticality_gec": "grammaticality\ngec"}, inplace=True)
             results = results[results.model_name.isin([args.plot_comparison_model_1, args.plot_comparison_model_2])].copy()
             results_melted = results.melt(id_vars=["data_size", "model_name"], var_name="metric")
 
@@ -115,7 +113,8 @@ def summarize_results(args):
             # g.map(sns.pointplot, "data_size", "value", "model_name", errorbar="sd", linestyle="none",
             #       dodge=.3)  # order=[1, 2, 3]
             g = sns.catplot(x="data_size", y="value", hue="model_name", data=results_melted,
-                            col="metric", col_wrap=2, height=2.5, aspect=2, sharey=True,
+                            col="metric", col_order=["grammaticality", "grammaticality (error correction)", "zorro", "blimp"],
+                            col_wrap=2, height=2.5, aspect=2, sharey=True,
                             kind="point", linewidth=1.5, errorbar="sd")
 
             print("t-tests:")
@@ -142,7 +141,7 @@ def summarize_results(args):
             g.set_axis_labels("Pretrainining data_size", "")
             g.set(ylim=(0, 1))
             g._legend.remove()
-            g.axes[-1].legend(loc='upper left', ncol=3, title="", bbox_to_anchor=(-0.3, 2.5))
+            g.axes[-1].legend(loc='upper left', ncol=3, title="", bbox_to_anchor=(-0.3, 2.6))
             plt.subplots_adjust(left=0.1, right=0.9, top=0.8, bottom=0.1)
             # sns.move_legend(g, "center right", bbox_to_anchor=(0.95, 0.55))
             plt.savefig("results.png", dpi=300)
