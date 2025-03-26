@@ -31,7 +31,9 @@ def main(args):
     data.to_csv(out_path, index=False)
 
     print(f"Mean grammaticality: {data.is_grammatical.values.mean()}")
-    print(f"Grammaticality counts: {data.is_grammatical.values.count()}")
+    print(f"Grammaticality counts: {data.data.is_grammatical.value_counts()}")
+    print(f"Grammaticality percentages: {data.data.is_grammatical.value_counts(normalize=True)}")
+
 
 
 def get_args():
