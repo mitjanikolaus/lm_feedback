@@ -111,17 +111,15 @@ def summarize_results(args):
             results_melted = results.melt(id_vars=["data_size", "model_name"], var_name="metric")
 
             plt.figure()
-            # g = sns.FacetGrid(results, col="metric", col_wrap=2, height=5)  # , ylim=(0, 10)
-            # g.map(sns.pointplot, "data_size", "value", "model_name", errorbar="sd", linestyle="none",
-            #       dodge=.3)  # order=[1, 2, 3]
             metric_order = ["Grammaticality", "Grammaticality (error correction)", "Zorro", "Blimp"]
-            g = sns.catplot(x="data_size", y="value", hue="model_name", data=results_melted,
+            data_size_order = ['0.1M words', '1M words', '10M words']
+            g = sns.catplot(x="data_size", order=data_size_order, y="value", hue="model_name", data=results_melted,
                             col="metric", col_order=metric_order,
                             col_wrap=2, height=2.5, aspect=2, sharey=False,
                             kind="point", linewidth=1.5, errorbar="sd")
 
             print("t-tests:")
-            for data_size_idx, data_size in enumerate(avg_results["data_size"].unique()):
+            for data_size_idx, data_size in enumerate(data_size_order):
                 print(data_size)
                 for metric in metrics:
                     baseline_scores = \
@@ -150,7 +148,7 @@ def summarize_results(args):
 
             g._legend.remove()
             g.axes[-1].legend(loc='upper left', ncol=3, title="", bbox_to_anchor=(-0.3, 2.6))
-            plt.subplots_adjust(left=0.1, right=0.9, top=0.8, bottom=0.1)
+            plt.subplots_adjust(left=0.05, right=1, top=0.8, bottom=0.1)
             # sns.move_legend(g, "center right", bbox_to_anchor=(0.95, 0.55))
             plt.savefig("results.png", dpi=300)
             plt.show()
