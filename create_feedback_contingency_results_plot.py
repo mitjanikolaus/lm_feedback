@@ -45,6 +45,45 @@ def create_results_plot(args):
     for transcript_file in tqdm(data.transcript_file.unique()):
         data_transcript = data[data.transcript_file == transcript_file]
         if len(data_transcript) > 100:
+            for is_grammatical in [-1, 0, 1]:
+                data_filtered = data_transcript[data_transcript.is_grammatical == is_grammatical]
+                counts = data_filtered.is_cr.value_counts(normalize=True)
+                for is_cr, count in zip(counts.index, counts):
+                    grammaticality = "ungrammatical" if is_grammatical == -1 else "grammatical" if is_grammatical == 1 else "ambiguous"
+                    entries.append(
+                        {"is_cr": "clarification request" if is_cr else "other", "grammaticality": grammaticality,
+                         "proportion": count, "transcript_file": transcript_file})
+
+    df = pd.DataFrame(entries)
+    df.sort_values(by='is_cr', inplace=True)
+    sns.set_palette("Set2")
+    fig = sns.barplot(df, x="grammaticality", y="proportion", hue="is_cr", errorbar="ci")
+    # fig = sns.barplot(df, x="is_cr", y="proportion", hue="grammaticality", errorbar="ci")
+
+    plt.xlabel("Child utterance grammaticality")
+    plt.ylabel("Proportion")
+    fig.legend_.set_title("Caregiver response")
+    fig.get_figure().savefig("grammaticality.png", dpi=300)
+
+    plt.figure()
+    df.sort_values(by='is_cr', inplace=True)
+    sns.set_palette("Set2")
+    fig = sns.barplot(df[df.is_cr == 'clarification request'], x="grammaticality", y="proportion", errorbar="ci",
+                      order=['ungrammatical', 'ambiguous', 'grammatical'])
+    # fig = sns.barplot(df, x="is_cr", y="proportion", hue="grammaticality", errorbar="ci")
+    # plt.xlabel("Child utterance grammaticality")
+    plt.ylabel("Proportion CRs")
+    # fig.legend_.set_title("Caregiver response")
+    fig.get_figure().savefig("grammaticality_alt.png", dpi=300)
+
+
+
+
+    plt.figure()
+    entries = []
+    for transcript_file in tqdm(data.transcript_file.unique()):
+        data_transcript = data[data.transcript_file == transcript_file]
+        if len(data_transcript) > 100:
             for is_cr in [0, 1]:
                 data_filtered = data_transcript[data_transcript.is_cr == is_cr]
                 counts = data_filtered.is_grammatical.value_counts(normalize=True)
