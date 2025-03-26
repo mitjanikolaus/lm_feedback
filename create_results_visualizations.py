@@ -148,9 +148,9 @@ def summarize_results(args):
 
             g._legend.remove()
             g.axes[-1].legend(loc='upper left', ncol=3, title="", bbox_to_anchor=(-0.3, 2.6))
-            plt.subplots_adjust(left=0.05, right=1, top=0.8, bottom=0.1)
+            plt.subplots_adjust(left=0.05, right=1, top=0.8, bottom=0.1, hspace=0.3)
             # sns.move_legend(g, "center right", bbox_to_anchor=(0.95, 0.55))
-            plt.savefig("results.png", dpi=300)
+            plt.savefig("results/results.svg", dpi=300)
             plt.show()
 
             # plt.figure()
