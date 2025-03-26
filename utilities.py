@@ -11,6 +11,7 @@ CHILDES_LM_VAL_DATA_FILE = os.path.join(DATA_DIR, "caregiver_utterances_val.txt"
 
 CONVERSATIONS_DATA_FILE = os.path.join(DATA_DIR, "conversations_min_age_10.csv")
 CONVERSATIONS_ANNOTATED_DATA_FILE = os.path.join(DATA_DIR, "conversations_min_age_10_annotated.csv")
+CONVERSATIONS_ANNOTATED_GRAMMAR_DATA_FILE = os.path.join(DATA_DIR, "conversations_min_age_10_annotated_annotated_grammar.csv")
 
 BABYLM_DATA_DIR = os.path.join(BASE_DATA_DIR, "babylm_data")
 BABYLM_DATA_DIR_CLEAN = os.path.join(BASE_DATA_DIR, "babylm_data_clean")

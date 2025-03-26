@@ -50,7 +50,12 @@ python train_ppo.py --policy_model lightning_logs/kqb5kj4z/ckpt_huggingface_best
 python create_results_visualizations.py
 ```
 
+To use the precomputed baseline stats as reference:
+```
+python create_results_visualizations.py --results_file results/results_baselines.csv
+```
+
 ### Visalizations for topline:
 ```
-python create_results_visualizations.py --plot_comparison_model_2 topline
+python create_results_visualizations.py --plot_comparison_model_2 Topline
 ```
