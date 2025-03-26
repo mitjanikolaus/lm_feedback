@@ -24,15 +24,15 @@ def summarize_results(args):
     def clean_model_name(name):
         if name.startswith("lightning_logs/dkwnlvzm") or name.startswith(
                 "lightning_logs/95f8k8zc") or name.startswith("lightning_logs/967ufsfk"):
-            return '1e5-baseline'
+            return '0.1M-baseline'
         if name.startswith("lightning_logs/lb86b69m") or name.startswith(
                 "lightning_logs/he3nnzld") or name.startswith("lightning_logs/5z07yaqp"):
-            return '1e6-baseline'
+            return '1M-baseline'
         if name.startswith("lightning_logs/qpp61q7x") or name.startswith(
                 "lightning_logs/m6s9vokb") or name.startswith("lightning_logs/uu5rtja8"):
-            return '1e7-baseline'
+            return '10M-baseline'
 
-        name = name.replace("ckpts_ppo/", "").replace("/best_reward/", "").replace("/best_reward", "").replace("_", "-")
+        name = name.replace("ckpts_ppo/", "").replace("/best_reward/", "").replace("/best_reward", "").replace("_", "-").replace("1e5", "0.1M").replace("1e6", "1M").replace("1e7", "10M")
         return "-".join(name.split("-")).replace("seed-1-", "").replace("seed-2-", "").replace("seed-3-", "")
 
     results["model_name"] = results.index.map(clean_model_name)
@@ -143,7 +143,7 @@ def summarize_results(args):
             g.set_titles("{col_name}")
             g.set_axis_labels("Pretrainining data size", "")
             for metric, ax in zip(metric_order, g.axes):
-                if metric == 'grammaticality':
+                if metric == 'Grammaticality':
                     ax.set_ylim((-1, 1))
                 else:
                     ax.set_ylim((0, 1))
