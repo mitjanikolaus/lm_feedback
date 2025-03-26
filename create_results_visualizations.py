@@ -58,11 +58,13 @@ def summarize_results(args):
     filter_models = ["baseline", "finetuned", "topline"]
     results = results[results.model_name.isin(filter_models)]
 
-    metrics_base = ["zorro", "blimp", "grammaticality", "grammaticality (error correction)"]
+    metrics_base = ["Zorro", "Blimp", "Grammaticality", "Grammaticality (error correction)"]
     metrics_detailed = [c.replace("_phenomena", "") for c in results.columns if c.startswith("zorro_phenomena/") or c.startswith("blimp_phenomena/")]
     results.rename(columns=lambda x: x.replace("_phenomena", ""), inplace=True)
+    results.model_name = results.model_name.apply(lambda x: x[0].upper()+x[1:])
     results.rename(
-        columns={"grammaticality_childes": "grammaticality", "grammaticality_gec": "grammaticality (error correction)"},
+        columns={"grammaticality_childes": "Grammaticality", "grammaticality_gec": "Grammaticality (error correction)",
+                 "zorro": "Zorro", "blimp": "Blimp"},
         inplace=True)
 
     # metrics_detailed = [c for c in results.columns if
@@ -112,7 +114,7 @@ def summarize_results(args):
             # g = sns.FacetGrid(results, col="metric", col_wrap=2, height=5)  # , ylim=(0, 10)
             # g.map(sns.pointplot, "data_size", "value", "model_name", errorbar="sd", linestyle="none",
             #       dodge=.3)  # order=[1, 2, 3]
-            metric_order = ["grammaticality", "grammaticality (error correction)", "zorro", "blimp"]
+            metric_order = ["Grammaticality", "Grammaticality (error correction)", "Zorro", "Blimp"]
             g = sns.catplot(x="data_size", y="value", hue="model_name", data=results_melted,
                             col="metric", col_order=metric_order,
                             col_wrap=2, height=2.5, aspect=2, sharey=False,
@@ -139,7 +141,7 @@ def summarize_results(args):
                         g.axes_dict[metric].text(data_size_idx, max_value + offset, '*', ha='center')
 
             g.set_titles("{col_name}")
-            g.set_axis_labels("Pretrainining data_size", "")
+            g.set_axis_labels("Pretrainining data size", "")
             for metric, ax in zip(metric_order, g.axes):
                 if metric == 'grammaticality':
                     ax.set_ylim((-1, 1))
@@ -199,8 +201,8 @@ def get_args():
 
     parser.add_argument("--results_file", type=str, default="results.csv")
 
-    parser.add_argument("--plot_comparison_model_1", type=str, default="baseline")
-    parser.add_argument("--plot_comparison_model_2", type=str, default="finetuned")
+    parser.add_argument("--plot_comparison_model_1", type=str, default="Baseline")
+    parser.add_argument("--plot_comparison_model_2", type=str, default="Finetuned")
 
     return parser.parse_args()
 
