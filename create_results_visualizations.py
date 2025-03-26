@@ -112,9 +112,10 @@ def summarize_results(args):
             # g = sns.FacetGrid(results, col="metric", col_wrap=2, height=5)  # , ylim=(0, 10)
             # g.map(sns.pointplot, "data_size", "value", "model_name", errorbar="sd", linestyle="none",
             #       dodge=.3)  # order=[1, 2, 3]
+            metric_order = ["grammaticality", "grammaticality (error correction)", "zorro", "blimp"]
             g = sns.catplot(x="data_size", y="value", hue="model_name", data=results_melted,
-                            col="metric", col_order=["grammaticality", "grammaticality (error correction)", "zorro", "blimp"],
-                            col_wrap=2, height=2.5, aspect=2, sharey=True,
+                            col="metric", col_order=metric_order,
+                            col_wrap=2, height=2.5, aspect=2, sharey=False,
                             kind="point", linewidth=1.5, errorbar="sd")
 
             print("t-tests:")
@@ -139,7 +140,12 @@ def summarize_results(args):
 
             g.set_titles("{col_name}")
             g.set_axis_labels("Pretrainining data_size", "")
-            g.set(ylim=(0, 1))
+            for metric, ax in zip(metric_order, g.axes):
+                if metric == 'grammaticality':
+                    ax.set_ylim((-1, 1))
+                else:
+                    ax.set_ylim((0, 1))
+
             g._legend.remove()
             g.axes[-1].legend(loc='upper left', ncol=3, title="", bbox_to_anchor=(-0.3, 2.6))
             plt.subplots_adjust(left=0.1, right=0.9, top=0.8, bottom=0.1)
