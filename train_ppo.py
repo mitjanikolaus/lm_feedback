@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 import torch
 from accelerate.utils import gather_object
-from torch.utils.data import DataLoader
 from trl.trainer.ppo_config import JSONDict
 
 import wandb
@@ -785,9 +784,6 @@ def main():
         value_model = AutoModelForSequenceClassification.from_pretrained(config.value_model)
         value_model.eval()
         value_model_tokenizer = AutoTokenizer.from_pretrained(config.value_model)
-
-    def val_collator(batch):
-        return tokenizer.pad(batch, padding=True, return_tensors="pt")
 
     def generate(batch, query_length_sampler, use_queries):
         generation_kwargs = {
