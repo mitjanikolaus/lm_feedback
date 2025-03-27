@@ -685,7 +685,6 @@ def save_checkpoint(dir, model, tokenizer):
 
 
 def eval(model, tokenizer, config, trainer, ckpt_dir, final=False):
-    # eval_lm_loss(model, tokenizer, config, trainer, lm_val_dataloader)
     all_results = {}
     if config.grammar_eval_model_path is not None:
         childes_grammar_model, childes_grammar_model_tokenizer = load_childes_grammar_model(
@@ -789,10 +788,6 @@ def main():
 
     def val_collator(batch):
         return tokenizer.pad(batch, padding=True, return_tensors="pt")
-
-    lm_val_dataloader = DataLoader(
-        lm_val_dataset, shuffle=False, batch_size=config.lm_val_batch_size, collate_fn=val_collator
-    )
 
     def generate(batch, query_length_sampler, use_queries):
         generation_kwargs = {
