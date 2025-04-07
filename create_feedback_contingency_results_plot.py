@@ -60,78 +60,38 @@ def create_results_plot(args):
                          "proportion": count, "transcript_file": transcript_file, "age": age})
 
     df = pd.DataFrame(entries)
-    df.sort_values(by='is_cr', inplace=True)
+    # df.sort_values(by='is_cr', inplace=True)
+    # sns.set_palette("Set2")
+    # fig = sns.barplot(df, x="grammaticality", y="proportion", hue="is_cr", errorbar="ci")
+    # # fig = sns.barplot(df, x="is_cr", y="proportion", hue="grammaticality", errorbar="ci")
+    #
+    # plt.xlabel("Child utterance grammaticality")
+    # plt.ylabel("Proportion")
+    # fig.legend_.set_title("Caregiver response")
+    # fig.get_figure().savefig("results/grammaticality_alt.svg", dpi=300)
+
+    grammar_order = ['grammatical', 'ungrammatical']
+    plt.figure(figsize=(6,5))
+    data_filtered = df[df.grammaticality.isin(grammar_order)]
+    data_filtered = data_filtered[data_filtered.is_cr == 'clarification request']
+    data_filtered = data_filtered.rename(columns={"grammaticality": "Grammaticality"})
     sns.set_palette("Set2")
-    fig = sns.barplot(df, x="grammaticality", y="proportion", hue="is_cr", errorbar="ci")
-    # fig = sns.barplot(df, x="is_cr", y="proportion", hue="grammaticality", errorbar="ci")
-
-    plt.xlabel("Child utterance grammaticality")
-    plt.ylabel("Proportion")
-    fig.legend_.set_title("Caregiver response")
-    fig.get_figure().savefig("results/grammaticality.svg", dpi=300)
-
-    grammar_order = ['grammatical', 'ambiguous', 'ungrammatical']
-    plt.figure()
-    df.sort_values(by='is_cr', inplace=True)
-    sns.set_palette("Set2")
-    fig = sns.barplot(df[df.is_cr == 'clarification request'], x="grammaticality", hue="grammaticality", hue_order=grammar_order, y="proportion", errorbar="ci")
-
-    plt.ylabel("Proportion CRs")
-    fig.get_figure().savefig("results/grammaticality_alt.png", dpi=300)
-
-    plt.figure()
-    df.sort_values(by='is_cr', inplace=True)
-    sns.set_palette("Set2")
-    fig = sns.barplot(df[df.is_cr == 'clarification request'], x="age", hue="grammaticality", hue_order=['grammatical', 'ambiguous', 'ungrammatical'], y="proportion",
+    fig = sns.barplot(data_filtered, x="Grammaticality", hue="Grammaticality", hue_order=grammar_order, y="proportion",
                       errorbar="ci")
     plt.ylabel("Proportion CRs")
+    plt.ylim((0, 0.24))
+    plt.tight_layout()
+    fig.get_figure().savefig("results/grammaticality.png", dpi=300)
+
+    plt.figure(figsize=(6,5))
+    sns.set_palette("Set2")
+    fig = sns.barplot(data_filtered, x="age", hue="Grammaticality", hue_order=grammar_order, y="proportion",
+                      errorbar="ci")
+    plt.ylabel("Proportion CRs")
+    plt.xlabel("Age (months)")
+    plt.ylim((0, 0.24))
+    plt.tight_layout()
     fig.get_figure().savefig("results/grammaticality_by_age.png", dpi=300)
-
-
-    plt.figure()
-    entries = []
-    for transcript_file in tqdm(data.transcript_file.unique()):
-        data_transcript = data[data.transcript_file == transcript_file]
-        if len(data_transcript) > 100:
-            for is_cr in [0, 1]:
-                data_filtered = data_transcript[data_transcript.is_cr == is_cr]
-                counts = data_filtered.is_grammatical.value_counts(normalize=True)
-                for is_grammatical, count in zip(counts.index, counts):
-                    grammaticality = "ungrammatical" if is_grammatical == -1 else "grammatical" if is_grammatical == 1 else "ambiguous"
-                    entries.append(
-                        {"is_cr": "clarification request" if is_cr else "other", "grammaticality": grammaticality,
-                         "proportion": count, "transcript_file": transcript_file})
-
-    df = pd.DataFrame(entries)
-    df.sort_values(by='is_cr', inplace=True)
-    sns.set_palette("Set2")
-    fig = sns.barplot(df, x="grammaticality", y="proportion", hue="is_cr", errorbar="ci")
-    plt.xlabel("Child utterance grammaticality")
-    plt.ylabel("Proportion")
-    fig.legend_.set_title("Caregiver response")
-    fig.get_figure().savefig("grammaticality.svg", dpi=300)
-
-    plt.figure()
-    entries = []
-    for transcript_file in tqdm(data.transcript_file.unique()):
-        data_transcript = data[data.transcript_file == transcript_file]
-        if len(data_transcript) > 100:
-            for is_grammatical in [-1, 0, 1]:
-                data_filtered = data_transcript[data_transcript.is_grammatical == is_grammatical]
-                counts = data_filtered.is_cr.value_counts(normalize=True)
-                for is_cr, count in zip(counts.index, counts):
-                    grammaticality = "ungrammatical" if is_grammatical == -1 else "grammatical" if is_grammatical == 1 else "ambiguous"
-                    entries.append({"is_cr": "clarification request" if is_cr else "other response", "grammaticality": grammaticality, "proportion": count, "transcript_file": transcript_file})
-
-    df = pd.DataFrame(entries)
-    df.sort_values(by='is_cr', inplace=True)
-    sns.set_palette("Set2")
-    print(df)
-    fig = sns.barplot(df, x="is_cr", y="proportion", hue="grammaticality")
-    plt.xlabel("Caregiver response")
-    plt.xlabel("Proportion")
-    fig.legend_.set_title("Child utterance")
-    fig.get_figure().savefig("results/grammaticality2.svg", dpi=300)
 
 
 def get_args():
