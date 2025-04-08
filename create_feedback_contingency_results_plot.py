@@ -71,28 +71,29 @@ def create_results_plot(args):
     # fig.get_figure().savefig("results/grammaticality_alt.svg", dpi=300)
 
     grammar_order = ['grammatical', 'ungrammatical']
-    plt.figure(figsize=(6,5))
+    plt.figure(figsize=(6, 5))
     data_filtered = df[df.grammaticality.isin(grammar_order)]
     data_filtered = data_filtered[data_filtered.is_cr == 'clarification request']
     data_filtered = data_filtered.rename(columns={"grammaticality": "Grammaticality"})
     sns.set_palette("Set2")
-    fig = sns.barplot(data_filtered, x="Grammaticality", hue="Grammaticality", hue_order=grammar_order, y="proportion",
+    fig = sns.barplot(data_filtered, x="Grammaticality", hue="Grammaticality", order=grammar_order, hue_order=grammar_order, y="proportion",
                       errorbar="ci")
-    plt.ylabel("Proportion CRs")
+    plt.ylabel("Proportion of Responses that are Clarification Requests")
     plt.ylim((0, 0.24))
     plt.tight_layout()
     fig.get_figure().savefig("results/grammaticality.png", dpi=300)
+    print(data_filtered.groupby('Grammaticality').aggregate({'proportion': 'mean'}))
+    print(data_filtered.groupby('Grammaticality').aggregate({'proportion': 'std'}))
 
-    plt.figure(figsize=(6,5))
+    plt.figure(figsize=(6, 5))
     sns.set_palette("Set2")
     fig = sns.barplot(data_filtered, x="age", hue="Grammaticality", hue_order=grammar_order, y="proportion",
                       errorbar="ci")
-    plt.ylabel("Proportion CRs")
+    plt.ylabel("Proportion of Responses that are Clarification Requests")
     plt.xlabel("Age (months)")
     plt.ylim((0, 0.24))
     plt.tight_layout()
     fig.get_figure().savefig("results/grammaticality_by_age.png", dpi=300)
-
 
 def get_args():
     parser = argparse.ArgumentParser()
