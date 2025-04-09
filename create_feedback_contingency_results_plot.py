@@ -84,6 +84,11 @@ def create_results_plot(args):
     fig.get_figure().savefig("results/grammaticality.png", dpi=300)
     print(data_filtered.groupby('Grammaticality').aggregate({'proportion': 'mean'}))
     print(data_filtered.groupby('Grammaticality').aggregate({'proportion': 'std'}))
+    ax = plt.gca()
+    lower = [line.get_ydata().min() for line in ax.lines]
+    upper = [line.get_ydata().max() for line in ax.lines]
+    print('CI lower bounds: ', lower)
+    print('CI upper bounds: ', upper)
 
     plt.figure(figsize=(6, 5))
     sns.set_palette("Set2")
